@@ -6,6 +6,7 @@
 
 #include <cassert>
 
+#include <limits>
 #include <vector>
 
 #include "gromacs/compat/make_unique.h"
@@ -33,7 +34,7 @@ PotentialContainer::RestraintIterator PotentialContainer::end()
 }
 
 PotentialContainer::PotentialContainer() :
-        impl_{gmx::compat::make_unique<PotentialContainer::Impl>()}
+    impl_{gmx::compat::make_unique<PotentialContainer::Impl>()}
 {}
 
 //template<typename T>
@@ -48,7 +49,7 @@ PotentialContainer::~PotentialContainer() = default;
 
 PotentialContainer &PotentialContainer::operator=(PotentialContainer &&) noexcept = default;
 
-PotentialContainer::PotentialContainer(PotentialContainer&&) noexcept = default;
+PotentialContainer::PotentialContainer(PotentialContainer &&) noexcept = default;
 
 namespace gmx
 {
@@ -80,12 +81,12 @@ LegacyPuller &LegacyPuller::operator=(LegacyPuller &&old) noexcept
 }
 
 PotentialPointData LegacyPuller::calculate(Vector r1,
-                                          Vector r2,
-                                          Time t)
+                                           Vector r2,
+                                           Time t)
 {
-    (void)(r1);
-    (void)(r2);
-    (void)(t);
+    (void) (r1);
+    (void) (r2);
+    (void) (t);
     return {};
 }
 
@@ -98,4 +99,5 @@ const struct pull_t *LegacyPuller::getRaw() const
 {
     return pullWorkPointer_;
 }
+
 } // end namespace gmx

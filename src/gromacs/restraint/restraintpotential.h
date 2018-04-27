@@ -213,28 +213,49 @@ class IRestraintPotential
                               double t) = 0;
 
 
-            /*!
-             * \brief Call-back hook for restraint implementations.
-             *
-             * An update function to be called on the simulation master rank/thread periodically
-             * by the Restraint framework.
-             * Receives the same input as the evaluate() method, but is only called on the master
-             * rank of a simulation to allow implementation code to be thread-safe without knowing
-             * anything about the domain decomposition.
-             *
-             * \param v position of the first site
-             * \param v0 position of the second site
-             * \param t simulation time
-             *
-             * \internal
-             * We give the definition here because we don't want plugins to have to link against
-             * libgromacs right now (complicated header maintenance and no API stability guarantees).
-             * But once we've had plugin restraints wrap themselves in a Restraint template, we can set update = 0
-             * \todo: Provide gmxapi facility for plugin restraints to wrap themselves with a default implementation to let this class be pure virtual.
-             */
+        /*!
+        * \brief Call-back hook for restraint implementations.
+        *
+        * An update function to be called on the simulation master rank/thread periodically
+        * by the Restraint framework.
+        * Receives the same input as the evaluate() method, but is only called on the master
+        * rank of a simulation to allow implementation code to be thread-safe without knowing
+        * anything about the domain decomposition.
+        *
+        * \param v position of the first site
+        * \param v0 position of the second site
+        * \param t simulation time
+        *
+        * \internal
+        * We give the definition here because we don't want plugins to have to link against
+        * libgromacs right now (complicated header maintenance and no API stability guarantees).
+        * But once we've had plugin restraints wrap themselves in a Restraint template, we can set update = 0
+        * \todo: Provide gmxapi facility for plugin restraints to wrap themselves with a default implementation to let this class be pure virtual.
+        */
         virtual void update(gmx::Vector v,
                             gmx::Vector v0,
-                            double t) { (void)v; (void)v0; (void)t; };
+                            double t)
+        {
+                (void) v;
+                (void) v0;
+                (void) t;
+        };
+        // We give the definition here because we don't want plugins to have to link against libgromacs right now.
+        // But once we've had plugin restraints wrap themselves in a Restraint template, we can
+        // set update(...) = 0
+
+        // The restraint framework may call this function to find out the next time that the update() function should be called.
+        // Note that with floating-point time, any value less than or equal to the current time will trigger an update.
+        // If left unimplemented, the default behavior is to return DBL_MAX so that ``update()`` is never called.
+        // \todo This is possibly an overly-complicated protocol, at least with the described behavior.
+        // An implementing class is required to override both or neither of ``update()`` and ``nextUpdateTime()`` for
+        // sensible behavior. We could instead merge this function with ``update()`` or instead/also establish a binding
+        // routine to get the updater, update schedule, and provide the client with information about state, such as
+        // through the bindSession() routine.
+        virtual double nextUpdateTime() const
+        {
+                return std::numeric_limits<double>::max();
+        };
 
 
         /*!

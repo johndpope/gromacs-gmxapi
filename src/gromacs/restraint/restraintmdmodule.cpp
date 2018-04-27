@@ -10,8 +10,10 @@
 
 gmx::RestraintForceProvider::RestraintForceProvider(std::shared_ptr<gmx::IRestraintPotential> restraint,
                                                const std::vector<unsigned long int>& sites) :
-    restraint_{std::move(restraint)},
-    sites_{}
+    // We don't move the restraint parameter to restraint_ because we don't save much and we use it to initialize nextUpdateTime_
+    restraint_{restraint},
+    sites_{},
+    nextUpdateTime_{restraint->nextUpdateTime()}
 {
     assert(restraint_ != nullptr);
     assert(sites_.empty());
@@ -79,23 +81,27 @@ void gmx::RestraintForceProvider::calculateForces(const t_commrec          *cr,
 
     // Master rank update call-back. This needs to be moved to a discrete place in the
     // time step to avoid extraneous barriers. The code would be prettier with "futures"...
-    if ((cr->dd == nullptr) || MASTER(cr))
+    if (t >= nextUpdateTime_)
     {
-        restraint_->update(make_vec3<real>(r1[0],
-                                           r1[1],
-                                           r1[2]),
-                           make_vec3<real>(r2[0],
-                                           r2[1],
-                                           r2[2]),
-                           t);
-    }
-    // All ranks wait for the update to finish.
-    // tMPI ranks are depending on structures that may have just been updated.
-    if (cr != nullptr && DOMAINDECOMP(cr))
-    {
-        // Note: this assumes that all ranks are hitting this line, which is not generally true.
-        // I need to find the right subcommunicator. What I really want is a _scoped_ communicator...
-        gmx_barrier(cr);
+        if ((cr->dd == nullptr) || MASTER(cr))
+        {
+            restraint_->update(make_vec3<real>(r1[0],
+                                               r1[1],
+                                               r1[2]),
+                               make_vec3<real>(r2[0],
+                                               r2[1],
+                                               r2[2]),
+                               t);
+        }
+        nextUpdateTime_ = restraint_->nextUpdateTime();
+        // All ranks wait for the update to finish.
+        // tMPI ranks are depending on structures that may have just been updated.
+        if (cr != nullptr && DOMAINDECOMP(cr))
+        {
+            // Note: this assumes that all ranks are hitting this line, which is not generally true.
+            // I need to find the right subcommunicator. What I really want is a _scoped_ communicator...
+            gmx_barrier(cr);
+        }
     }
 
     // Apply restraint on all thread ranks only after any updates have been made.

@@ -287,6 +287,7 @@ class RestraintForceProvider : public gmx::IForceProvider
     private:
         std::shared_ptr<gmx::IRestraintPotential> restraint_;
         std::vector<Site> sites_;
+        double nextUpdateTime_;
 };
 
 /*! \internal

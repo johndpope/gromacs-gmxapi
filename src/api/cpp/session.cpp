@@ -5,6 +5,7 @@
 #include "gmxapi/session.h"
 
 #include <cassert>
+#include "gromacs/mdtypes/tpxstate.h"
 #include "gromacs/utility/basenetwork.h"
 #include "gromacs/utility/init.h"
 #include "gmxapi/md/mdmodule.h"
@@ -13,6 +14,8 @@
 #include "gmxapi/context.h"
 #include "gmxapi/status.h"
 
+#include "context-impl.h"
+#include "workflow.h"
 #include "session-impl.h"
 
 namespace gmxapi
@@ -24,9 +27,10 @@ class MpiContextManager
         MpiContextManager()
         {
             gmx::init(nullptr, nullptr);
-#if GMX_MPI
-            assert(gmx_mpi_initialized());
-#endif
+            if (gmxHasMpi())
+            {
+                assert(gmx_mpi_initialized());
+            }
         };
 
         ~MpiContextManager()
@@ -53,7 +57,11 @@ class MpiContextManager
  * \return true if open, false if closed, compiler error if non-sensical.
  */
 template<class T>
-bool isOpen(const T& object);
+bool isOpen(const T& object)
+{
+    return object.isOpen();
+};
+
 //{
 //    (void) object;
 //    static_assert(false, "Compiler could not find open/close concept for the given object.");
@@ -104,19 +112,43 @@ Status SessionImpl::run() noexcept
 }
 
 std::unique_ptr<SessionImpl> SessionImpl::create(std::shared_ptr<ContextImpl> context,
-                                                 std::unique_ptr<gmx::Mdrunner> runner)
+                                                 const Workflow &work)
 {
-    std::unique_ptr<SessionImpl> impl{new SessionImpl(std::move(context), std::move(runner))};
+    std::unique_ptr<SessionImpl> impl{new SessionImpl(std::move(context), work)};
     return impl;
 }
 
 SessionImpl::SessionImpl(std::shared_ptr<ContextImpl> context,
-                         std::unique_ptr<gmx::Mdrunner> runner) :
+                         const Workflow &work) :
     status_{gmx::compat::make_unique<Status>(true)},
     context_{std::make_shared<Context>(std::move(context))},
     mpiContextManager_{gmx::compat::make_unique<MpiContextManager>()},
-    runner_{std::move(runner)}
+    runner_{nullptr}
 {
+    // mpiContextManager needs to be initialized before the gmx::Mdrunner constructor is called.
+
+    // This is the libgromacs client code.
+    // A Context should manage things like an MPI environment for the duration of the calling script.
+    // A local Session should probably initialize and deinitialize libgromacs once and only once per instance.
+    // We haven't yet considered a scenario with multiple Sessions per Context lifetime.
+
+    // Check workflow spec, build graph for current context, launch and return new session.
+
+    auto mdNode = work.getNode("MD");
+    std::string filename{};
+    if (mdNode != nullptr)
+    {
+        filename = mdNode->params();
+    }
+    auto newMdRunner = gmx::compat::make_unique<gmx::Mdrunner>();
+    if (!filename.empty())
+    {
+        auto tpxState = gmx::TpxState::initializeFromFile(filename);
+        newMdRunner->setTpx(std::move(tpxState));
+        newMdRunner->initFromAPI(context_->MDArgs());
+        runner_ = std::move(newMdRunner);
+    }
+
     assert(status_ != nullptr);
     assert(context_ != nullptr);
     assert(mpiContextManager_ != nullptr);
@@ -138,6 +170,7 @@ Status SessionImpl::setRestraint(std::shared_ptr<gmxapi::MDModule> module)
     }
     return status;
 }
+
 
 Session::Session(std::unique_ptr<SessionImpl>&& impl) noexcept :
     impl_{std::move(impl)}

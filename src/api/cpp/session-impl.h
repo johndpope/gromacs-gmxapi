@@ -68,18 +68,13 @@ class SessionImpl
         Status run() noexcept;
 
         static std::unique_ptr<SessionImpl> create(std::shared_ptr<ContextImpl> context,
-                                                   std::unique_ptr<gmx::Mdrunner> runner);
+                                                   const Workflow &work);
 
         Status setRestraint(std::shared_ptr<gmxapi::MDModule> module);
     private:
-        /*!
-         * \brief Private constructor for use by create()
-         *
-         * \param context specific context to keep alive during session.
-         * \param runner ownership of live Mdrunner object.
-         */
+
         SessionImpl(std::shared_ptr<ContextImpl> context,
-                    std::unique_ptr<gmx::Mdrunner> runner);
+                    const Workflow &work);
 
         /*!
          * \brief Current / most recent Status for the session.

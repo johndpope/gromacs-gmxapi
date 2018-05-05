@@ -42,6 +42,7 @@ gmx_add_gtest_executable(
     gmxapi-mpi-test MPI
     moduletest.cpp
     test_md.cpp
+    test_mpirunner.cpp
     test_restraint.cpp
     test_runner.cpp
     # The tMPI pulling is currently broken
@@ -65,6 +66,12 @@ if(BUILD_TESTING)
                              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     endif(GMX_MPI OR GMX_THREAD_MPI)
 endif()
+
+# The GROMACS testing framework initializes MPI in its wrapper code, which defeats the purpose of some of our testing,
+# so we have to roll our own for some stuff here.
+
+include(GoogleTest)
+
 
 # If we want to override the API version in the version.h for testing purposes, we'll do it another way...
 #target_compile_definitions(gmxapi-test PUBLIC

@@ -88,6 +88,13 @@ class Context
         void setMDArgs(const MDArgs& mdArgs);
 
         /*!
+         * \brief Get the client-provided simulation runtime arguments for this instance.
+         *
+         * \return mdrun arguments
+         */
+        MDArgs MDArgs() const;
+
+        /*!
          * \brief Launch a workflow in the current context, if possible.
          *
          * \param work Configured workflow to instantiate.

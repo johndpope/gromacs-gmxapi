@@ -112,28 +112,9 @@ std::shared_ptr<Session> ContextImpl::launch(std::shared_ptr<ContextImpl> contex
     // This implementation can only run one workflow at a time.
     if (session_.expired())
     {
-        // Check workflow spec, build graph for current context, launch and return new session.
-        // \todo This is specific to the session implementation...
-        auto mdNode = work.getNode("MD");
-        std::string filename{};
-        if (mdNode != nullptr)
-        {
-            filename = mdNode->params();
-        }
-        auto newMdRunner = gmx::compat::make_unique<gmx::Mdrunner>();
-        if (!filename.empty())
-        {
-            auto tpxState = gmx::TpxState::initializeFromFile(filename);
-            newMdRunner->setTpx(std::move(tpxState));
-            newMdRunner->initFromAPI(mdArgs_);
-        }
-
-        {
-            auto newSession = SessionImpl::create(std::move(context),
-                                                  std::move(newMdRunner));
-            session = std::make_shared<Session>(std::move(newSession));
-        }
-
+        auto newSession = SessionImpl::create(std::move(context),
+                                              work);
+        session = std::make_shared<Session>(std::move(newSession));
 
 //        for (auto&& node : work)
 //        {
@@ -170,9 +151,14 @@ Context::Context(std::shared_ptr<ContextImpl> &&impl) :
     assert(impl_ != nullptr);
 }
 
-void Context::setMDArgs(const MDArgs &mdArgs)
+void Context::setMDArgs(const gmxapi::MDArgs &mdArgs)
 {
     impl_->mdArgs_ = mdArgs;
+}
+
+MDArgs Context::MDArgs() const
+{
+    return impl_->mdArgs_;
 }
 
 Context::~Context() = default;

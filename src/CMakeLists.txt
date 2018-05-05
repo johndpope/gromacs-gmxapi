@@ -46,7 +46,10 @@ endif()
 configure_file(config.h.cmakein config.h)
 configure_file(gmxpre-config.h.cmakein gmxpre-config.h)
 configure_file(buildinfo.h.cmakein buildinfo.h ESCAPE_QUOTES)
-
+add_library(gmx_config INTERFACE)
+target_include_directories(gmx_config INTERFACE
+                           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+                           )
 if (BUILD_TESTING)
     if(NOT GMX_DEVELOPER_BUILD)
         set(UNITTEST_TARGET_OPTIONS EXCLUDE_FROM_ALL)

@@ -104,7 +104,7 @@ set_target_properties(gmxapi PROPERTIES
                       VERSION ${GMXAPI_RELEASE}
                       )
 
-target_link_libraries(gmxapi PRIVATE libgromacs)
+target_link_libraries(gmxapi PRIVATE libgromacs gmx_config)
 
 # Install the gmxapi target and simultaneously define the export target for
 # which CMake will create a helper file. Specify the directory for clients to

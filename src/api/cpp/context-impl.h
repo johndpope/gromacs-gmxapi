@@ -21,7 +21,7 @@ constexpr MpiType gmxMpiType()
 #if GMX_LIB_MPI
     return MpiType::mpi;
 #elif GMX_THREAD_MPI
-    return MpiType::tmp;
+    return MpiType::tmpi;
 #else
     return MpiType::none;
 #endif

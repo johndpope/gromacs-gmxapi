@@ -6,6 +6,8 @@
 //
 //#include <memory>
 //
+#include <mpi.h>
+
 #include "gmxapi/context.h"
 //#include "gmxapi/md/mdmodule.h"
 //#include "gmxapi/md.h"
@@ -22,7 +24,6 @@
 //#include "gromacs/mdtypes/tpxstate.h"
 //#include "gromacs/restraint/restraintpotential.h"
 //#include "gromacs/utility/arrayref.h"
-#include "gromacs/utility/gmxmpi.h"
 
 #include <gtest/gtest.h>
 
@@ -98,7 +99,7 @@ TEST(MpiApiRunner, BasicMD)
         // Also note that gromacs/utility/gmxmpi.h redefines MPI_Init and related functions, so we
         // need to be clear about whether we are using GROMACS-wrapped MPI or directly accessing the
         // MPI libraries.
-        MPI_Init(nullptr,nullptr);
+        MPI_Init(nullptr, nullptr);
         needToFinalize = true;
     }
 

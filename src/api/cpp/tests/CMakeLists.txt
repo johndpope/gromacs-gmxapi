@@ -46,7 +46,6 @@ gmx_add_gtest_executable(
     gmxapi-mpi-test MPI
     moduletest.cpp
     test_md.cpp
-    test_mpirunner.cpp
     test_restraint.cpp
     test_runner.cpp
     # The tMPI pulling is currently broken
@@ -62,7 +61,7 @@ if(GMX_THREAD_MPI)
     target_sources(gmxapi-mpi-test PRIVATE test_tmpi_context.cpp)
 endif()
 if(GMX_LIB_MPI)
-    target_sources(gmxapi-mpi-test PRIVATE test_mpi_context.cpp)
+    target_sources(gmxapi-mpi-test PRIVATE test_mpi_context.cpp test_mpirunner.cpp)
 endif()
 
 target_include_directories(gmxapi-mpi-test PRIVATE
@@ -71,13 +70,13 @@ target_link_libraries(gmxapi-mpi-test Gromacs::gmxapi)
 
 gmx_register_gtest_test(GmxapiMpiTests gmxapi-mpi-test MPI_RANKS 2 INTEGRATION_TEST)
 
-if(BUILD_TESTING)
-    # Apparently gmx_register_gtest_test has some conditional like the following when MPI_RANKS is setor when gmx_add_gtest_executable has MPI set.
-    if(GMX_MPI OR GMX_THREAD_MPI)
-        set_tests_properties(GmxapiMpiTests PROPERTIES
-                             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    endif(GMX_MPI OR GMX_THREAD_MPI)
-endif()
+#if(BUILD_TESTING)
+#    # Apparently gmx_register_gtest_test has some conditional like the following when MPI_RANKS is set or when gmx_add_gtest_executable has MPI set.
+#    if(GMX_MPI OR GMX_THREAD_MPI)
+#        set_tests_properties(GmxapiMpiTests PROPERTIES
+#                             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+#    endif(GMX_MPI OR GMX_THREAD_MPI)
+#endif()
 
 # The GROMACS testing framework initializes MPI in its wrapper code, which defeats the purpose of some of our testing,
 # so we have to roll our own for some stuff here.

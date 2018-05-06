@@ -42,7 +42,7 @@ class warn
         const char* message_;
 };
 
-using gmxapi::MDArgs;
+using gmxapi::MDArgsType;
 
 /*!
  * \brief Context implementation base class.
@@ -85,7 +85,7 @@ class ContextImpl
         std::shared_ptr<Status> status_;
         std::weak_ptr<Session> session_;
 
-        MDArgs mdArgs_;
+        MDArgsType mdArgs_;
 };
 
 ContextImpl::ContextImpl() :
@@ -151,12 +151,12 @@ Context::Context(std::shared_ptr<ContextImpl> &&impl) :
     assert(impl_ != nullptr);
 }
 
-void Context::setMDArgs(const gmxapi::MDArgs &mdArgs)
+void Context::setMDArgs(const gmxapi::MDArgsType &mdArgs)
 {
     impl_->mdArgs_ = mdArgs;
 }
 
-MDArgs Context::MDArgs() const
+MDArgsType Context::MDArgs() const
 {
     return impl_->mdArgs_;
 }

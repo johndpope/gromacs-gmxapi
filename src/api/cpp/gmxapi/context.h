@@ -17,7 +17,7 @@ namespace gmxapi
 class Status;
 class Workflow;
 class Session;
-using MDArgs = std::vector<std::string>;
+using MDArgsType = std::vector<std::string>;
 
 /*!
  * \brief Context implementation abstract base class.
@@ -85,14 +85,14 @@ class Context
          * to the execution environment rather than the simulation parameters. For the first implementation,
          * we just map user arguments to the equivalent command-line substrings.
          */
-        void setMDArgs(const MDArgs& mdArgs);
+        void setMDArgs(const MDArgsType& mdArgs);
 
         /*!
          * \brief Get the client-provided simulation runtime arguments for this instance.
          *
          * \return mdrun arguments
          */
-        MDArgs MDArgs() const;
+        MDArgsType MDArgs() const;
 
         /*!
          * \brief Launch a workflow in the current context, if possible.

@@ -27,10 +27,7 @@ class MpiContextManager
         MpiContextManager()
         {
             gmx::init(nullptr, nullptr);
-            if (gmxHasMpi())
-            {
-                assert(gmx_mpi_initialized());
-            }
+            assert(!gmxHasMPI() || gmx_mpi_initialized());
         };
 
         ~MpiContextManager()

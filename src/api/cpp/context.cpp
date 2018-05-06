@@ -164,7 +164,7 @@ MDArgsType Context::MDArgs() const
 
 bool Context::hasMPI()
 {
-    return gmxHasMpi();
+    return gmxHasMPI();
 }
 
 Context::~Context() = default;

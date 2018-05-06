@@ -106,6 +106,18 @@ class Context
          */
         std::shared_ptr<Session> launch(const Workflow& work);
 
+        /*!
+         * \brief Test whether Context implementation is build with MPI support
+         *
+         * If GROMACS is built with MPI support, initialization and finalization of the GROMACS library includes
+         * initialization and finalization of the MPI context. We generally want to manage that from
+         * the API client layer. Clients may use this helper function to determine whether they would
+         * like to do their own MPI initialization and finalization outside of libgromacs.
+         *
+         * \return true if supported by an MPI build of libgromacs whether or not MPI is being used by this process.
+         */
+        static bool hasMPI();
+
     private:
         /*!
          * \brief Private implementation may be shared by several interfaces.

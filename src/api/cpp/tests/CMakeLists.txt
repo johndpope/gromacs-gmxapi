@@ -29,6 +29,10 @@ gmx_add_gtest_executable(
     test_version_helpers.cpp
     )
 
+if(GMX_THREAD_MPI)
+    target_sources(gmxapi-test PRIVATE test_tmpi_context.cpp)
+endif()
+
 target_include_directories(gmxapi-test PRIVATE
                            ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(gmxapi-test Gromacs::gmxapi)
@@ -52,6 +56,14 @@ gmx_add_gtest_executable(
     test_workflow.cpp
     test_version_helpers.cpp
     )
+
+
+if(GMX_THREAD_MPI)
+    target_sources(gmxapi-mpi-test PRIVATE test_tmpi_context.cpp)
+endif()
+if(GMX_LIB_MPI)
+    target_sources(gmxapi-mpi-test PRIVATE test_mpi_context.cpp)
+endif()
 
 target_include_directories(gmxapi-mpi-test PRIVATE
                            ${CMAKE_CURRENT_BINARY_DIR})

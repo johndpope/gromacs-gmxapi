@@ -92,9 +92,12 @@ TEST(MpiApiRunner, BasicMD)
     int isInitialized{0};
     bool needToFinalize{false};
     MPI_Initialized(&isInitialized);
-    if (!isInitialized)
+    if (!isInitialized && gmxapi::Context::hasMPI())
     {
         // GROMACS still supports MPI 1, which allows implementations to require passing argc and argv.
+        // Also note that gromacs/utility/gmxmpi.h redefines MPI_Init and related functions, so we
+        // need to be clear about whether we are using GROMACS-wrapped MPI or directly accessing the
+        // MPI libraries.
         MPI_Init(nullptr,nullptr);
         needToFinalize = true;
     }

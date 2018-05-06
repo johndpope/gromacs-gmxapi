@@ -17,6 +17,7 @@
 #include "gmxapi/session.h"
 #include "gmxapi/status.h"
 
+#include "context-impl.h"
 #include "workflow.h"
 #include "workflow-impl.h"
 #include "session-impl.h"
@@ -159,6 +160,11 @@ void Context::setMDArgs(const gmxapi::MDArgsType &mdArgs)
 MDArgsType Context::MDArgs() const
 {
     return impl_->mdArgs_;
+}
+
+bool Context::hasMPI()
+{
+    return gmxHasMpi();
 }
 
 Context::~Context() = default;

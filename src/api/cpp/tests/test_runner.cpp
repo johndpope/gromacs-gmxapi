@@ -96,7 +96,13 @@ TEST(ApiRunner, BasicMD)
         std::shared_ptr<gmxapi::Context> context = gmxapi::defaultContext();
         ASSERT_TRUE(context != nullptr);
         ASSERT_TRUE(system != nullptr);
-        auto session = system->launch();
+
+        // The automatic choice of number of threads may generate a fatal error, so we need to be explicit.
+        auto args = context->MDArgs();
+        args.emplace_back("-ntomp");
+        args.emplace_back("1");
+        context->setMDArgs(args);
+        auto session = system->launch(context);
         ASSERT_TRUE(session != nullptr);
         gmxapi::Status status;
         ASSERT_NO_THROW(status = session->run());

@@ -112,7 +112,8 @@ TEST(MpiApiRunner, BasicMD)
 
         // The automatic choice of number of threads may generate a fatal error, so we need to be explicit.
         auto args = context->MDArgs();
-        args.emplace_back("-ntomp", "1");
+        args.emplace_back("-ntomp");
+        args.emplace_back("1");
         context->setMDArgs(args);
         auto session = system->launch(context);
         ASSERT_TRUE(session != nullptr);

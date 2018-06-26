@@ -1772,6 +1772,16 @@ int Mdrunner::mdrunner()
     }
 #endif
 
+    // If log file is open, try to flush it before we return control to the API
+    if (MASTER(cr) && fplog != nullptr)
+    {
+        // If fplog is already closed, but has not been set to nullptr, we expect errno to be set, but we don't care,
+        // so we will make sure to leave it in the same state we found it.
+        const auto tempErrno = errno;
+        fflush(fplog);
+        errno = tempErrno;
+    }
+
     return rc;
 }
 

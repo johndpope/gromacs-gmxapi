@@ -1,20 +1,121 @@
 language: cpp
+sudo: false
 
+# Note: if a cache store forks due to a stage with parallel jobs that Travis identifies as part of the same flow,
+# we must make sure that the parallel jobs do not write to any of the same caches. Also note that all stages use the
+# same cache, so early stage jobs may see caches from later stages from previous builds in the same branch.
+# Note the heuristics for whether cache is shared or distinct:
+# https://docs.travis-ci.com/user/caching/#Caches-and-build-matrices
+cache:
+  # Caching for Python package installation.
+  pip: true
+  # `apt` cache has appeared in other travis yml files online... As of July 2018
+  # it seems to have no effect, good or bad. Maybe it will be (re?)enabled in the future.
+  apt: true
+  # We use non-default ccache directories and avoid `cache: ccache` to be sure of our
+  # own ccache configuration. The default Travis-CI setup has some things we don't want,
+  # such as it replaces the default compiler paths with the wrappers. We want to call
+  # the wrapper explicitly and manage the cache ourselves.
+  directories:
+    - $HOME/.ccache_gromacs
+    - $HOME/.ccache_py
+
+# Reference https://docs.travis-ci.com/user/customizing-the-build/#The-Build-Lifecycle
+matrix:
+  include:
+  - name: "gcc 5 thread-MPI"
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        packages:
+        # Install compiler packages
+        - g++-5
+        - gcc-5
+        # The rest should be the same for all jobs
+        - cmake
+        - cmake-data
+        - doxygen
+        - libblas-dev
+        - libcr-dev
+        - libfftw3-dev
+        - liblapack-dev
+        - libxml2-dev
+    env: CI_MPI=0 C_COMPILER=gcc-5 CXX_COMPILER=g++-5
+  - name: "gcc 7 MPICH"
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        packages:
+        # Install compiler packages
+        - g++-7
+        - gcc-7
+        # The rest should be the same for all jobs
+        - cmake
+        - cmake-data
+        - doxygen
+        - libblas-dev
+        - libcr-dev
+        - libfftw3-dev
+        - liblapack-dev
+        - libxml2-dev
+    env: CI_MPI=1 C_COMPILER=gcc-7 CXX_COMPILER=g++-7
+  - name: "clang 5 MPICH"
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        - llvm-toolchain-trusty-5.0
+        packages:
+        # clang 5 comes with Ubuntu Trusty, but libomp doesn't work right
+        - clang-5.0
+        # The rest should be the same for all jobs
+        - cmake
+        - cmake-data
+        - doxygen
+        - libblas-dev
+        - libcr-dev
+        - libfftw3-dev
+        - liblapack-dev
+        - libxml2-dev
+    env: CI_MPI=1 C_COMPILER=clang-5.0 CXX_COMPILER=clang++-5.0
+  - name: "clang 6 thread-MPI"
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        - llvm-toolchain-trusty-6.0
+        packages:
+        # Install compiler packages
+        - clang-6.0
+        # The rest should be the same for all jobs
+        - cmake
+        - cmake-data
+        - doxygen
+        - libblas-dev
+        - libcr-dev
+        - libfftw3-dev
+        - liblapack-dev
+        - libxml2-dev
+    env: CI_MPI=1 C_COMPILER=clang-6.0 CXX_COMPILER=clang++-6.0
+
+# Set up for all jobs
 before_install:
- - echo "yes" | sudo add-apt-repository ppa:kalakris/cmake #https://github.com/travis-ci/travis-ci/issues/2212
- - sudo apt-get update
- - sudo apt-get install libfftw3-dev libopenmpi-dev libx11-dev zlib1g-dev libgsl0-dev libxml2-dev libblas-dev liblapack-dev libboost-dev cmake
+  - export CCACHE_COMPILERCHECK=content
+  - export CCACHE_DIR=$HOME/.ccache_gromacs
+  # Install mpich for the current compiler
+  - export MPICH_DIR=$HOME/mpich-install
+  - ./ci_scripts/install_mpich.sh
+  - export PATH=$MPICH_DIR/bin:$PATH
+  - source ./ci_scripts/set_compilers
 
-env:
-  matrix:
-    - GMX_DOUBLE=OFF GMX_MPI=OFF
-    - GMX_DOUBLE=OFF GMX_MPI=ON
-    - GMX_DOUBLE=ON  GMX_MPI=OFF
-    - GMX_DOUBLE=ON  GMX_MPI=ON
+install:
+  - export CCACHE_DIR=$HOME/.ccache_gromacs
+  - ccache -s
+  - ./ci_scripts/install_gromacs.sh
 
-script: 
-  - mkdir build && pushd build && cmake -DGMX_DOUBLE=$GMX_DOUBLE -DGMX_MPI=$GMX_MPI .. && make -j4
-
-compiler:
-  - clang
-  - gcc
+script:
+  - pushd build
+  - make check
+  - popd

@@ -43,15 +43,26 @@
 #define GMX_MDRUN_RUNNER_H
 
 #include <cstdio>
+#include <cassert>
 
 #include <array>
+#include <memory>
+#include <vector>
+#include <string>
+#include <mutex>
+#include <bitset>
+#include "gromacs/commandline/pargs.h"
 
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/hardware/hw_info.h"
 #include "gromacs/math/vec.h"
+#include "gromacs/mdlib/main.h"
 #include "gromacs/mdlib/mdrun.h"
 #include "gromacs/mdlib/repl_ex.h"
+#include "gromacs/mdlib/simulationsignal.h"
+#include "gromacs/mdtypes/imdmodule.h"
+#include "gromacs/topology/topology.h"
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
@@ -85,8 +96,14 @@ class Mdrunner
     private:
         //! Parallelism-related user options.
         gmx_hw_opt_t             hw_opt;
+        /*! \brief Number of filename argument values.
+         *
+         * Provided for compatibility with old C-style code accessing
+         * command-line arguments that are file names. */
+        constexpr static int nfile = 34;
+
         //! Filenames and properties from command-line argument values.
-        std::array<t_filenm, 34> filenames =
+        std::array<t_filenm, nfile> filenames =
         {{{ efTPR, nullptr,     nullptr,     ffREAD },
           { efTRN, "-o",        nullptr,     ffWRITE },
           { efCOMPRESSED, "-x", nullptr,     ffOPTWR },
@@ -126,11 +143,6 @@ class Mdrunner
          * Provided for compatibility with old C-style code accessing
          * command-line arguments that are file names. */
         t_filenm *fnm = filenames.data();
-        /*! \brief Number of filename argument values.
-         *
-         * Provided for compatibility with old C-style code accessing
-         * command-line arguments that are file names. */
-        int nfile = filenames.size();
         //! Output context for writing text files
         gmx_output_env_t                *oenv = nullptr;
         //! Ongoing collection of mdrun options
@@ -157,7 +169,7 @@ class Mdrunner
         gmx_multisim_t                  *ms;
 
     public:
-        /*! \brief Defaulted constructor.
+        /*! \brief Constructor.
          *
          * Note that when member variables are not present in the constructor
          * member initialization list (which is true for the default constructor),
@@ -167,6 +179,10 @@ class Mdrunner
         //! Start running mdrun by calling its C-style main function.
         int mainFunction(int argc, char *argv[]);
         /*! \brief Driver routine, that calls the different simulation methods. */
+        /*!
+         * Currently, thread-MPI does not spawn threads until during mdrunner() and parallelism
+         * is not initialized until some time during this call...
+         */
         int mdrunner();
         //! Called when thread-MPI spawns threads.
         t_commrec *spawnThreads(int numThreadsToLaunch) const;

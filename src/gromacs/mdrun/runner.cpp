@@ -141,14 +141,19 @@
  *  will trigger a multi-simulation is set */
 static bool is_multisim_option_set(int argc, const char *const argv[])
 {
+    bool isSet{false};
     for (int i = 0; i < argc; ++i)
     {
         if (strcmp(argv[i], "-multidir") == 0)
         {
-            return true;
+            isSet = true;
+            // Logically, we could break here, but this is not performance
+            // critical and we would like simple control flow that can be
+            // easily inlined.
+            //break;
         }
     }
-    return false;
+    return isSet;
 }
 
 namespace gmx

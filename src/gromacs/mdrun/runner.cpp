@@ -332,434 +332,6 @@ static void override_nsteps_cmdline(const gmx::MDLogger &mdlog,
 namespace gmx
 {
 
-int Mdrunner::mainFunction(int argc, char *argv[])
-{
-    const char   *desc[] = {
-        "[THISMODULE] is the main computational chemistry engine",
-        "within GROMACS. Obviously, it performs Molecular Dynamics simulations,",
-        "but it can also perform Stochastic Dynamics, Energy Minimization,",
-        "test particle insertion or (re)calculation of energies.",
-        "Normal mode analysis is another option. In this case [TT]mdrun[tt]",
-        "builds a Hessian matrix from single conformation.",
-        "For usual Normal Modes-like calculations, make sure that",
-        "the structure provided is properly energy-minimized.",
-        "The generated matrix can be diagonalized by [gmx-nmeig].[PAR]",
-        "The [TT]mdrun[tt] program reads the run input file ([TT]-s[tt])",
-        "and distributes the topology over ranks if needed.",
-        "[TT]mdrun[tt] produces at least four output files.",
-        "A single log file ([TT]-g[tt]) is written.",
-        "The trajectory file ([TT]-o[tt]), contains coordinates, velocities and",
-        "optionally forces.",
-        "The structure file ([TT]-c[tt]) contains the coordinates and",
-        "velocities of the last step.",
-        "The energy file ([TT]-e[tt]) contains energies, the temperature,",
-        "pressure, etc, a lot of these things are also printed in the log file.",
-        "Optionally coordinates can be written to a compressed trajectory file",
-        "([TT]-x[tt]).[PAR]",
-        "The option [TT]-dhdl[tt] is only used when free energy calculation is",
-        "turned on.[PAR]",
-        "Running mdrun efficiently in parallel is a complex topic topic,",
-        "many aspects of which are covered in the online User Guide. You",
-        "should look there for practical advice on using many of the options",
-        "available in mdrun.[PAR]",
-        "ED (essential dynamics) sampling and/or additional flooding potentials",
-        "are switched on by using the [TT]-ei[tt] flag followed by an [REF].edi[ref]",
-        "file. The [REF].edi[ref] file can be produced with the [TT]make_edi[tt] tool",
-        "or by using options in the essdyn menu of the WHAT IF program.",
-        "[TT]mdrun[tt] produces a [REF].xvg[ref] output file that",
-        "contains projections of positions, velocities and forces onto selected",
-        "eigenvectors.[PAR]",
-        "When user-defined potential functions have been selected in the",
-        "[REF].mdp[ref] file the [TT]-table[tt] option is used to pass [TT]mdrun[tt]",
-        "a formatted table with potential functions. The file is read from",
-        "either the current directory or from the [TT]GMXLIB[tt] directory.",
-        "A number of pre-formatted tables are presented in the [TT]GMXLIB[tt] dir,",
-        "for 6-8, 6-9, 6-10, 6-11, 6-12 Lennard-Jones potentials with",
-        "normal Coulomb.",
-        "When pair interactions are present, a separate table for pair interaction",
-        "functions is read using the [TT]-tablep[tt] option.[PAR]",
-        "When tabulated bonded functions are present in the topology,",
-        "interaction functions are read using the [TT]-tableb[tt] option.",
-        "For each different tabulated interaction type used, a table file name must",
-        "be given. For the topology to work, a file name given here must match a",
-        "character sequence before the file extension. That sequence is: an underscore,",
-        "then a 'b' for bonds, an 'a' for angles or a 'd' for dihedrals,",
-        "and finally the matching table number index used in the topology.[PAR]",
-        "The options [TT]-px[tt] and [TT]-pf[tt] are used for writing pull COM",
-        "coordinates and forces when pulling is selected",
-        "in the [REF].mdp[ref] file.[PAR]",
-        "Finally some experimental algorithms can be tested when the",
-        "appropriate options have been given. Currently under",
-        "investigation are: polarizability.",
-        "[PAR]",
-        "The option [TT]-membed[tt] does what used to be g_membed, i.e. embed",
-        "a protein into a membrane. This module requires a number of settings",
-        "that are provided in a data file that is the argument of this option.",
-        "For more details in membrane embedding, see the documentation in the",
-        "user guide. The options [TT]-mn[tt] and [TT]-mp[tt] are used to provide",
-        "the index and topology files used for the embedding.",
-        "[PAR]",
-        "The option [TT]-pforce[tt] is useful when you suspect a simulation",
-        "crashes due to too large forces. With this option coordinates and",
-        "forces of atoms with a force larger than a certain value will",
-        "be printed to stderr. It will also terminate the run when non-finite",
-        "forces are present.",
-        "[PAR]",
-        "Checkpoints containing the complete state of the system are written",
-        "at regular intervals (option [TT]-cpt[tt]) to the file [TT]-cpo[tt],",
-        "unless option [TT]-cpt[tt] is set to -1.",
-        "The previous checkpoint is backed up to [TT]state_prev.cpt[tt] to",
-        "make sure that a recent state of the system is always available,",
-        "even when the simulation is terminated while writing a checkpoint.",
-        "With [TT]-cpnum[tt] all checkpoint files are kept and appended",
-        "with the step number.",
-        "A simulation can be continued by reading the full state from file",
-        "with option [TT]-cpi[tt]. This option is intelligent in the way that",
-        "if no checkpoint file is found, GROMACS just assumes a normal run and",
-        "starts from the first step of the [REF].tpr[ref] file. By default the output",
-        "will be appending to the existing output files. The checkpoint file",
-        "contains checksums of all output files, such that you will never",
-        "loose data when some output files are modified, corrupt or removed.",
-        "There are three scenarios with [TT]-cpi[tt]:[PAR]",
-        "[TT]*[tt] no files with matching names are present: new output files are written[PAR]",
-        "[TT]*[tt] all files are present with names and checksums matching those stored",
-        "in the checkpoint file: files are appended[PAR]",
-        "[TT]*[tt] otherwise no files are modified and a fatal error is generated[PAR]",
-        "With [TT]-noappend[tt] new output files are opened and the simulation",
-        "part number is added to all output file names.",
-        "Note that in all cases the checkpoint file itself is not renamed",
-        "and will be overwritten, unless its name does not match",
-        "the [TT]-cpo[tt] option.",
-        "[PAR]",
-        "With checkpointing the output is appended to previously written",
-        "output files, unless [TT]-noappend[tt] is used or none of the previous",
-        "output files are present (except for the checkpoint file).",
-        "The integrity of the files to be appended is verified using checksums",
-        "which are stored in the checkpoint file. This ensures that output can",
-        "not be mixed up or corrupted due to file appending. When only some",
-        "of the previous output files are present, a fatal error is generated",
-        "and no old output files are modified and no new output files are opened.",
-        "The result with appending will be the same as from a single run.",
-        "The contents will be binary identical, unless you use a different number",
-        "of ranks or dynamic load balancing or the FFT library uses optimizations",
-        "through timing.",
-        "[PAR]",
-        "With option [TT]-maxh[tt] a simulation is terminated and a checkpoint",
-        "file is written at the first neighbor search step where the run time",
-        "exceeds [TT]-maxh[tt]\\*0.99 hours. This option is particularly useful in",
-        "combination with setting [TT]nsteps[tt] to -1 either in the mdp or using the",
-        "similarly named command line option. This results in an infinite run,",
-        "terminated only when the time limit set by [TT]-maxh[tt] is reached (if any)"
-        "or upon receiving a signal."
-        "[PAR]",
-        "When [TT]mdrun[tt] receives a TERM or INT signal (e.g. when ctrl+C is",
-        "pressed), it will stop at the next neighbor search step or at the",
-        "second global communication step, whichever happens later.",
-        "When [TT]mdrun[tt] receives a second TERM or INT signal and",
-        "reproducibility is not requested, it will stop at the first global",
-        "communication step.",
-        "In both cases all the usual output will be written to file and",
-        "a checkpoint file is written at the last step.",
-        "When [TT]mdrun[tt] receives an ABRT signal or the third TERM or INT signal,",
-        "it will abort directly without writing a new checkpoint file.",
-        "When running with MPI, a signal to one of the [TT]mdrun[tt] ranks",
-        "is sufficient, this signal should not be sent to mpirun or",
-        "the [TT]mdrun[tt] process that is the parent of the others.",
-        "[PAR]",
-        "Interactive molecular dynamics (IMD) can be activated by using at least one",
-        "of the three IMD switches: The [TT]-imdterm[tt] switch allows one to terminate",
-        "the simulation from the molecular viewer (e.g. VMD). With [TT]-imdwait[tt],",
-        "[TT]mdrun[tt] pauses whenever no IMD client is connected. Pulling from the",
-        "IMD remote can be turned on by [TT]-imdpull[tt].",
-        "The port [TT]mdrun[tt] listens to can be altered by [TT]-imdport[tt].The",
-        "file pointed to by [TT]-if[tt] contains atom indices and forces if IMD",
-        "pulling is used."
-        "[PAR]",
-        "When [TT]mdrun[tt] is started with MPI, it does not run niced by default."
-    };
-
-    /* Command line options */
-    rvec              realddxyz                                               = {0, 0, 0};
-    const char       *ddrank_opt_choices[static_cast<int>(DdRankOrder::nr)+1] =
-    { nullptr, "interleave", "pp_pme", "cartesian", nullptr };
-    const char       *dddlb_opt_choices[static_cast<int>(DlbOption::nr)+1] =
-    { nullptr, "auto", "no", "yes", nullptr };
-    const char       *thread_aff_opt_choices[threadaffNR+1] =
-    { nullptr, "auto", "on", "off", nullptr };
-    const char       *nbpu_opt_choices[] =
-    { nullptr, "auto", "cpu", "gpu", nullptr };
-    const char       *pme_opt_choices[] =
-    { nullptr, "auto", "cpu", "gpu", nullptr };
-    const char       *pme_fft_opt_choices[] =
-    { nullptr, "auto", "cpu", "gpu", nullptr };
-    gmx_bool          bTryToAppendFiles     = TRUE;
-    const char       *gpuIdsAvailable       = "";
-    const char       *userGpuTaskAssignment = "";
-
-    ImdOptions       &imdOptions = mdrunOptions.imdOptions;
-
-    t_pargs           pa[] = {
-
-        { "-dd",      FALSE, etRVEC, {&realddxyz},
-          "Domain decomposition grid, 0 is optimize" },
-        { "-ddorder", FALSE, etENUM, {ddrank_opt_choices},
-          "DD rank order" },
-        { "-npme",    FALSE, etINT, {&domdecOptions.numPmeRanks},
-          "Number of separate ranks to be used for PME, -1 is guess" },
-        { "-nt",      FALSE, etINT, {&hw_opt.nthreads_tot},
-          "Total number of threads to start (0 is guess)" },
-        { "-ntmpi",   FALSE, etINT, {&hw_opt.nthreads_tmpi},
-          "Number of thread-MPI ranks to start (0 is guess)" },
-        { "-ntomp",   FALSE, etINT, {&hw_opt.nthreads_omp},
-          "Number of OpenMP threads per MPI rank to start (0 is guess)" },
-        { "-ntomp_pme", FALSE, etINT, {&hw_opt.nthreads_omp_pme},
-          "Number of OpenMP threads per MPI rank to start (0 is -ntomp)" },
-        { "-pin",     FALSE, etENUM, {thread_aff_opt_choices},
-          "Whether mdrun should try to set thread affinities" },
-        { "-pinoffset", FALSE, etINT, {&hw_opt.core_pinning_offset},
-          "The lowest logical core number to which mdrun should pin the first thread" },
-        { "-pinstride", FALSE, etINT, {&hw_opt.core_pinning_stride},
-          "Pinning distance in logical cores for threads, use 0 to minimize the number of threads per physical core" },
-        { "-gpu_id",  FALSE, etSTR, {&gpuIdsAvailable},
-          "List of unique GPU device IDs available to use" },
-        { "-gputasks",  FALSE, etSTR, {&userGpuTaskAssignment},
-          "List of GPU device IDs, mapping each PP task on each node to a device" },
-        { "-ddcheck", FALSE, etBOOL, {&domdecOptions.checkBondedInteractions},
-          "Check for all bonded interactions with DD" },
-        { "-ddbondcomm", FALSE, etBOOL, {&domdecOptions.useBondedCommunication},
-          "HIDDENUse special bonded atom communication when [TT]-rdd[tt] > cut-off" },
-        { "-rdd",     FALSE, etREAL, {&domdecOptions.minimumCommunicationRange},
-          "The maximum distance for bonded interactions with DD (nm), 0 is determine from initial coordinates" },
-        { "-rcon",    FALSE, etREAL, {&domdecOptions.constraintCommunicationRange},
-          "Maximum distance for P-LINCS (nm), 0 is estimate" },
-        { "-dlb",     FALSE, etENUM, {dddlb_opt_choices},
-          "Dynamic load balancing (with DD)" },
-        { "-dds",     FALSE, etREAL, {&domdecOptions.dlbScaling},
-          "Fraction in (0,1) by whose reciprocal the initial DD cell size will be increased in order to "
-          "provide a margin in which dynamic load balancing can act while preserving the minimum cell size." },
-        { "-ddcsx",   FALSE, etSTR, {&domdecOptions.cellSizeX},
-          "HIDDENA string containing a vector of the relative sizes in the x "
-          "direction of the corresponding DD cells. Only effective with static "
-          "load balancing." },
-        { "-ddcsy",   FALSE, etSTR, {&domdecOptions.cellSizeY},
-          "HIDDENA string containing a vector of the relative sizes in the y "
-          "direction of the corresponding DD cells. Only effective with static "
-          "load balancing." },
-        { "-ddcsz",   FALSE, etSTR, {&domdecOptions.cellSizeZ},
-          "HIDDENA string containing a vector of the relative sizes in the z "
-          "direction of the corresponding DD cells. Only effective with static "
-          "load balancing." },
-        { "-gcom",    FALSE, etINT, {&mdrunOptions.globalCommunicationInterval},
-          "Global communication frequency" },
-        { "-nb",      FALSE, etENUM, {nbpu_opt_choices},
-          "Calculate non-bonded interactions on" },
-        { "-nstlist", FALSE, etINT, {&nstlist_cmdline},
-          "Set nstlist when using a Verlet buffer tolerance (0 is guess)" },
-        { "-tunepme", FALSE, etBOOL, {&mdrunOptions.tunePme},
-          "Optimize PME load between PP/PME ranks or GPU/CPU (only with the Verlet cut-off scheme)" },
-        { "-pme",     FALSE, etENUM, {pme_opt_choices},
-          "Perform PME calculations on" },
-        { "-pmefft", FALSE, etENUM, {pme_fft_opt_choices},
-          "Perform PME FFT calculations on" },
-        { "-v",       FALSE, etBOOL, {&mdrunOptions.verbose},
-          "Be loud and noisy" },
-        { "-pforce",  FALSE, etREAL, {&pforce},
-          "Print all forces larger than this (kJ/mol nm)" },
-        { "-reprod",  FALSE, etBOOL, {&mdrunOptions.reproducible},
-          "Try to avoid optimizations that affect binary reproducibility" },
-        { "-cpt",     FALSE, etREAL, {&mdrunOptions.checkpointOptions.period},
-          "Checkpoint interval (minutes)" },
-        { "-cpnum",   FALSE, etBOOL, {&mdrunOptions.checkpointOptions.keepAndNumberCheckpointFiles},
-          "Keep and number checkpoint files" },
-        { "-append",  FALSE, etBOOL, {&bTryToAppendFiles},
-          "Append to previous output files when continuing from checkpoint instead of adding the simulation part number to all file names" },
-        { "-nsteps",  FALSE, etINT64, {&mdrunOptions.numStepsCommandline},
-          "Run this number of steps, overrides .mdp file option (-1 means infinite, -2 means use mdp option, smaller is invalid)" },
-        { "-maxh",   FALSE, etREAL, {&mdrunOptions.maximumHoursToRun},
-          "Terminate after 0.99 times this time (hours)" },
-        { "-replex",  FALSE, etINT, {&replExParams.exchangeInterval},
-          "Attempt replica exchange periodically with this period (steps)" },
-        { "-nex",  FALSE, etINT, {&replExParams.numExchanges},
-          "Number of random exchanges to carry out each exchange interval (N^3 is one suggestion).  -nex zero or not specified gives neighbor replica exchange." },
-        { "-reseed",  FALSE, etINT, {&replExParams.randomSeed},
-          "Seed for replica exchange, -1 is generate a seed" },
-        { "-imdport",    FALSE, etINT, {&imdOptions.port},
-          "HIDDENIMD listening port" },
-        { "-imdwait",  FALSE, etBOOL, {&imdOptions.wait},
-          "HIDDENPause the simulation while no IMD client is connected" },
-        { "-imdterm",  FALSE, etBOOL, {&imdOptions.terminatable},
-          "HIDDENAllow termination of the simulation from IMD client" },
-        { "-imdpull",  FALSE, etBOOL, {&imdOptions.pull},
-          "HIDDENAllow pulling in the simulation from IMD client" },
-        { "-rerunvsite", FALSE, etBOOL, {&mdrunOptions.rerunConstructVsites},
-          "HIDDENRecalculate virtual site coordinates with [TT]-rerun[tt]" },
-        { "-confout", FALSE, etBOOL, {&mdrunOptions.writeConfout},
-          "HIDDENWrite the last configuration with [TT]-c[tt] and force checkpointing at the last step" },
-        { "-stepout", FALSE, etINT, {&mdrunOptions.verboseStepPrintInterval},
-          "HIDDENFrequency of writing the remaining wall clock time for the run" },
-        { "-resetstep", FALSE, etINT, {&mdrunOptions.timingOptions.resetStep},
-          "HIDDENReset cycle counters after these many time steps" },
-        { "-resethway", FALSE, etBOOL, {&mdrunOptions.timingOptions.resetHalfway},
-          "HIDDENReset the cycle counters after half the number of steps or halfway [TT]-maxh[tt]" }
-    };
-    int               rc;
-
-    cr = init_commrec();
-
-    unsigned long PCA_Flags = PCA_CAN_SET_DEFFNM;
-    // With -multidir, the working directory still needs to be
-    // changed, so we can't check for the existence of files during
-    // parsing.  It isn't useful to do any completion based on file
-    // system contents, either.
-    if (is_multisim_option_set(argc, argv))
-    {
-        PCA_Flags |= PCA_DISABLE_INPUT_FILE_CHECKING;
-    }
-
-    if (!parse_common_args(&argc, argv, PCA_Flags, nfile, fnm, asize(pa), pa,
-                           asize(desc), desc, 0, nullptr, &oenv))
-    {
-        sfree(cr);
-        return 0;
-    }
-
-    // Handle the options that permits the user to either declare
-    // which compatible GPUs are availble for use, or to select a GPU
-    // task assignment. Either could be in an environment variable (so
-    // that there is a way to customize it, when using MPI in
-    // heterogeneous contexts).
-    {
-        // TODO Argument parsing can't handle std::string. We should
-        // fix that by changing the parsing, once more of the roles of
-        // handling, validating and implementing defaults for user
-        // command-line options have been seperated.
-        hw_opt.gpuIdsAvailable       = gpuIdsAvailable;
-        hw_opt.userGpuTaskAssignment = userGpuTaskAssignment;
-
-        const char *env = getenv("GMX_GPU_ID");
-        if (env != nullptr)
-        {
-            if (!hw_opt.gpuIdsAvailable.empty())
-            {
-                gmx_fatal(FARGS, "GMX_GPU_ID and -gpu_id can not be used at the same time");
-            }
-            hw_opt.gpuIdsAvailable = env;
-        }
-
-        env = getenv("GMX_GPUTASKS");
-        if (env != nullptr)
-        {
-            if (!hw_opt.userGpuTaskAssignment.empty())
-            {
-                gmx_fatal(FARGS, "GMX_GPUTASKS and -gputasks can not be used at the same time");
-            }
-            hw_opt.userGpuTaskAssignment = env;
-        }
-
-        if (!hw_opt.gpuIdsAvailable.empty() && !hw_opt.userGpuTaskAssignment.empty())
-        {
-            gmx_fatal(FARGS, "-gpu_id and -gputasks cannot be used at the same time");
-        }
-    }
-
-    hw_opt.thread_affinity = nenum(thread_aff_opt_choices);
-
-    // now check for a multi-simulation
-    gmx::ArrayRef<const std::string> multidir = opt2fnsIfOptionSet("-multidir", nfile, fnm);
-
-    if (replExParams.exchangeInterval != 0 && multidir.size() < 2)
-    {
-        gmx_fatal(FARGS, "Need at least two replicas for replica exchange (use option -multidir)");
-    }
-
-    if (replExParams.numExchanges < 0)
-    {
-        gmx_fatal(FARGS, "Replica exchange number of exchanges needs to be positive");
-    }
-
-    ms = init_multisystem(MPI_COMM_WORLD, multidir);
-
-    /* Prepare the intra-simulation communication */
-    // TODO consolidate this with init_commrec, after changing the
-    // relative ordering of init_commrec and init_multisystem
-#if GMX_MPI
-    if (ms != nullptr)
-    {
-        cr->nnodes = cr->nnodes / ms->nsim;
-        MPI_Comm_split(MPI_COMM_WORLD, ms->sim, cr->sim_nodeid, &cr->mpi_comm_mysim);
-        cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
-        MPI_Comm_rank(cr->mpi_comm_mysim, &cr->sim_nodeid);
-        MPI_Comm_rank(cr->mpi_comm_mygroup, &cr->nodeid);
-    }
-#endif
-
-    if (!opt2bSet("-cpi", nfile, fnm))
-    {
-        // If we are not starting from a checkpoint we never allow files to be appended
-        // to, since that has caused a ton of strange behaviour and bugs in the past.
-        if (opt2parg_bSet("-append", asize(pa), pa))
-        {
-            // If the user explicitly used the -append option, explain that it is not possible.
-            gmx_fatal(FARGS, "GROMACS can only append to files when restarting from a checkpoint.");
-        }
-        else
-        {
-            // If the user did not say anything explicit, just disable appending.
-            bTryToAppendFiles = FALSE;
-        }
-    }
-
-    ContinuationOptions &continuationOptions = mdrunOptions.continuationOptions;
-
-    continuationOptions.appendFilesOptionSet = opt2parg_bSet("-append", asize(pa), pa);
-
-    handleRestart(cr, ms, bTryToAppendFiles, nfile, fnm, &continuationOptions.appendFiles, &continuationOptions.startedFromCheckpoint);
-
-    mdrunOptions.rerun            = opt2bSet("-rerun", nfile, fnm);
-    mdrunOptions.ntompOptionIsSet = opt2parg_bSet("-ntomp", asize(pa), pa);
-
-    /* We postpone opening the log file if we are appending, so we can
-       first truncate the old log file and append to the correct position
-       there instead.  */
-    if (MASTER(cr) && !continuationOptions.appendFiles)
-    {
-        gmx_log_open(ftp2fn(efLOG, nfile, fnm), cr,
-                     continuationOptions.appendFiles, &fplog);
-    }
-    else
-    {
-        fplog = nullptr;
-    }
-
-    //////////////////////////////////////////
-    domdecOptions.rankOrder    = static_cast<DdRankOrder>(nenum(ddrank_opt_choices));
-    domdecOptions.dlbOption    = static_cast<DlbOption>(nenum(dddlb_opt_choices));
-    domdecOptions.numCells[XX] = (int)(realddxyz[XX] + 0.5);
-    domdecOptions.numCells[YY] = (int)(realddxyz[YY] + 0.5);
-    domdecOptions.numCells[ZZ] = (int)(realddxyz[ZZ] + 0.5);
-
-    nbpu_opt    = nbpu_opt_choices[0];
-    pme_opt     = pme_opt_choices[0];
-    pme_fft_opt = pme_fft_opt_choices[0];
-
-
-    rc = mdrunner();
-
-    /* Log file has to be closed in mdrunner if we are appending to it
-       (fplog not set here) */
-    if (fplog != nullptr)
-    {
-        gmx_log_close(fplog);
-    }
-
-    if (GMX_LIB_MPI)
-    {
-        done_commrec(cr);
-    }
-    done_multisim(ms);
-    return rc;
-}
-
 //! Halt the run if there are inconsistences between user choices to run with GPUs and/or hardware detection.
 static void exitIfCannotForceGpuRun(bool requirePhysicalGpu,
                                     bool emulateGpu,
@@ -1895,6 +1467,251 @@ int Mdrunner::mdrunner()
 #endif
 
     return rc;
+}
+
+Mdrunner::~Mdrunner() = default;
+
+class Mdrunner::BuilderImplementation
+{
+    public:
+        BuilderImplementation();
+        ~BuilderImplementation();
+
+        bool setExtraMdrunOptions(const MdrunOptions& options,
+                                          real forceWarningThreshold);
+        bool setDomdec(const DomdecOptions& options);
+        bool setHardwareOptions(const gmx_hw_opt_t& options);
+        bool setVerletList(int nstlist);
+        bool setReplicaExchange(const ReplicaExchangeParameters& params);
+        bool setFilenames(const std::array<t_filenm, 34>& filenames);
+        bool setCommunications(t_commrec** communicator);
+        bool addMultiSim(gmx_multisim_t** multisim);
+        bool setOutputContext(gmx_output_env_t** outputEnvironment, FILE** logFile);
+
+        std::unique_ptr<Mdrunner> build(const char* nbpu_opt,
+                                                const char* pme_opt,
+                                                const char* pme_fft_opt);
+    private:
+        MdrunOptions mdrunOptions_;
+        DomdecOptions domdecOptions_;
+        gmx_hw_opt_t hardwareOptions_;
+        ReplicaExchangeParameters replicaExchangeParameters_;
+        int nstlist_;
+        std::array<t_filenm, 34> filenames_;
+        //! Non-owning communicator handle.
+        std::unique_ptr<t_commrec*> communicator_;
+        //! Non-owning multisim communicator handle.
+        std::unique_ptr<gmx_multisim_t*> multisim_;
+        //! Non-owning handle to output environment.
+        std::unique_ptr<gmx_output_env_t*> outputEnvironment_;
+        //! Non-owning handle to MD log file.
+        std::unique_ptr<FILE*> logFile_;
+        real forceWarningThreshold_;
+};
+
+Mdrunner::BuilderImplementation::BuilderImplementation() :
+    nstlist_{0},
+    filenames_{{}},
+    communicator_{gmx::compat::make_unique<t_commrec*>()},
+    multisim_{gmx::compat::make_unique<gmx_multisim_t*>()},
+    outputEnvironment_{gmx::compat::make_unique<gmx_output_env_t*>()},
+    logFile_{gmx::compat::make_unique<FILE*>()},
+    forceWarningThreshold_{-1}
+{
+
+}
+
+Mdrunner::BuilderImplementation::~BuilderImplementation()
+{
+
+}
+
+bool Mdrunner::BuilderImplementation::setExtraMdrunOptions(const MdrunOptions& options,
+                                                           real forceWarningThreshold)
+{
+    bool success{false};
+    mdrunOptions_ = options;
+    forceWarningThreshold_ = forceWarningThreshold;
+    success = true;
+    return success;
+}
+
+bool Mdrunner::BuilderImplementation::setDomdec(const DomdecOptions& options)
+{
+    bool success{false};
+    domdecOptions_ = options;
+    success = true;
+    return success;
+}
+
+bool Mdrunner::BuilderImplementation::setHardwareOptions(const gmx_hw_opt_t& options)
+{
+    bool success{false};
+    hardwareOptions_ = options;
+    success = true;
+    return success;
+}
+
+bool Mdrunner::BuilderImplementation::setVerletList(int nstlist)
+{
+    nstlist_ = nstlist;
+    return true;
+}
+
+bool Mdrunner::BuilderImplementation::setReplicaExchange(const ReplicaExchangeParameters& params)
+{
+    replicaExchangeParameters_ = params;
+    return true;
+}
+
+bool Mdrunner::BuilderImplementation::setFilenames(const std::array<t_filenm, 34>& filenames)
+{
+    for(size_t i=0; i < filenames.size(); ++i)
+    {
+        filenames_[i].ftp = filenames[i].ftp;
+        filenames_[i].flag = filenames[i].flag;
+        filenames_[i].filenames = filenames[i].filenames;
+    }
+    return true;
+}
+
+bool Mdrunner::BuilderImplementation::setCommunications(t_commrec** communicator)
+{
+    communicator_.reset(communicator);
+    return true;
+}
+
+bool Mdrunner::BuilderImplementation::addMultiSim(gmx_multisim_t** multisim)
+{
+    multisim_.reset(multisim);
+    return true;
+}
+
+bool Mdrunner::BuilderImplementation::setOutputContext(gmx_output_env_t** outputEnvironment,
+                                                       FILE** logFile)
+{
+    outputEnvironment_.reset(outputEnvironment);
+    logFile_.reset(logFile);
+    return true;
+}
+
+std::unique_ptr<Mdrunner> Mdrunner::BuilderImplementation::build(const char* nbpu_opt,
+                                                                 const char* pme_opt,
+                                                                 const char* pme_fft_opt)
+{
+    auto newRunner = gmx::compat::make_unique<Mdrunner>();
+    newRunner->mdrunOptions = mdrunOptions_;
+    newRunner->domdecOptions = domdecOptions_;
+    newRunner->hw_opt = hardwareOptions_;
+    newRunner->nstlist_cmdline = nstlist_;
+    newRunner->replExParams = replicaExchangeParameters_;
+
+    for(size_t i=0; i < filenames_.size(); ++i)
+    {
+        newRunner->filenames[i].ftp = filenames_[i].ftp;
+        newRunner->filenames[i].flag = filenames_[i].flag;
+        newRunner->filenames[i].filenames = filenames_[i].filenames;
+    }
+
+    newRunner->fnm = newRunner->filenames.data();
+    newRunner->nfile = newRunner->filenames.size();
+
+    newRunner->cr = *communicator_.release();
+    newRunner->ms = *multisim_.release();
+
+    newRunner->oenv = *outputEnvironment_.release();
+    newRunner->fplog = *logFile_.release();
+
+    newRunner->nbpu_opt = nbpu_opt;
+    newRunner->pme_opt = pme_opt;
+    newRunner->pme_fft_opt = pme_fft_opt;
+    return newRunner;
+}
+
+MdrunnerBuilder::MdrunnerBuilder() :
+    impl_{gmx::compat::make_unique<Mdrunner::BuilderImplementation>()}
+{
+}
+
+MdrunnerBuilder::~MdrunnerBuilder()
+{}
+
+MdrunnerBuilder& MdrunnerBuilder::setExtraMdrunOptions(const MdrunOptions& options,
+                                                       real forceWarningThreshold)
+{
+    bool success = impl_->setExtraMdrunOptions(options,
+                                               forceWarningThreshold);
+    if (!success)
+    {
+        GMX_THROW(APIError("For some reason, couldn't setExtraMdrunOptions"));
+    }
+    return *this;
+}
+
+MdrunnerBuilder& MdrunnerBuilder::setDomdec(const DomdecOptions& options)
+{
+    bool success = impl_->setDomdec(options);
+    if (!success)
+    {
+        GMX_THROW(APIError("For some reason, couldn't setDomdec"));
+    }
+    return *this;
+}
+
+MdrunnerBuilder& MdrunnerBuilder::setHardwareOptions(const gmx_hw_opt_t& options)
+{
+    bool success = impl_->setHardwareOptions(options);
+    if (!success)
+    {
+        GMX_THROW(APIError("For some reason, couldn't setHardwareOptions."));
+    }
+    return *this;
+}
+
+MdrunnerBuilder& MdrunnerBuilder::setVerletList(int nstlist)
+{
+    impl_->setVerletList(nstlist);
+    return *this;
+}
+
+MdrunnerBuilder& MdrunnerBuilder::setReplicaExchange(const ReplicaExchangeParameters& params)
+{
+    impl_->setReplicaExchange(params);
+    return *this;
+}
+
+MdrunnerBuilder& MdrunnerBuilder::setFilenames(const std::array<t_filenm, 34>& filenames)
+{
+    impl_->setFilenames(filenames);
+    return *this;
+}
+
+MdrunnerBuilder& MdrunnerBuilder::setCommunications(t_commrec** communicator)
+{
+    impl_->setCommunications(communicator);
+    return *this;
+}
+
+MdrunnerBuilder& MdrunnerBuilder::addMultiSim(gmx_multisim_t** multisim)
+{
+    impl_->addMultiSim(multisim);
+    return *this;
+}
+
+MdrunnerBuilder& MdrunnerBuilder::setOutputContext(gmx_output_env_t** outputEnvironment,
+                                                   FILE** logFile)
+{
+    impl_->setOutputContext(outputEnvironment, logFile);
+    return *this;
+}
+
+std::unique_ptr<Mdrunner> MdrunnerBuilder::build(const char* nbpu_opt,
+                                                 const char* pme_opt,
+                                                 const char* pme_fft_opt)
+{
+    return impl_->build(nbpu_opt,
+                        pme_opt,
+                        pme_fft_opt);
 }
 
 } // namespace gmx

@@ -57,6 +57,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <gromacs/compat/make_unique.h>
 
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
@@ -247,51 +248,7 @@ int gmx_mdrun(int argc, char *argv[])
     ReplicaExchangeParameters        replExParams;
 
     //! Filenames and properties from command-line argument values.
-    std::array<t_filenm, 34> filenames =
-    {{{ efTPR, nullptr,     nullptr,     ffREAD },
-      { efTRN, "-o",        nullptr,     ffWRITE },
-      { efCOMPRESSED, "-x", nullptr,     ffOPTWR },
-      { efCPT, "-cpi",      nullptr,     ffOPTRD | ffALLOW_MISSING },
-      { efCPT, "-cpo",      nullptr,     ffOPTWR },
-      { efSTO, "-c",        "confout",   ffWRITE },
-      { efEDR, "-e",        "ener",      ffWRITE },
-      { efLOG, "-g",        "md",        ffWRITE },
-      { efXVG, "-dhdl",     "dhdl",      ffOPTWR },
-      { efXVG, "-field",    "field",     ffOPTWR },
-      { efXVG, "-table",    "table",     ffOPTRD },
-      { efXVG, "-tablep",   "tablep",    ffOPTRD },
-      { efXVG, "-tableb",   "table",     ffOPTRDMULT },
-      { efTRX, "-rerun",    "rerun",     ffOPTRD },
-      { efXVG, "-tpi",      "tpi",       ffOPTWR },
-      { efXVG, "-tpid",     "tpidist",   ffOPTWR },
-      { efEDI, "-ei",       "sam",       ffOPTRD },
-      { efXVG, "-eo",       "edsam",     ffOPTWR },
-      { efXVG, "-devout",   "deviatie",  ffOPTWR },
-      { efXVG, "-runav",    "runaver",   ffOPTWR },
-      { efXVG, "-px",       "pullx",     ffOPTWR },
-      { efXVG, "-pf",       "pullf",     ffOPTWR },
-      { efXVG, "-ro",       "rotation",  ffOPTWR },
-      { efLOG, "-ra",       "rotangles", ffOPTWR },
-      { efLOG, "-rs",       "rotslabs",  ffOPTWR },
-      { efLOG, "-rt",       "rottorque", ffOPTWR },
-      { efMTX, "-mtx",      "nm",        ffOPTWR },
-      { efRND, "-multidir", nullptr,     ffOPTRDMULT},
-      { efXVG, "-awh",      "awhinit",   ffOPTRD },
-      { efDAT, "-membed",   "membed",    ffOPTRD },
-      { efTOP, "-mp",       "membed",    ffOPTRD },
-      { efNDX, "-mn",       "membed",    ffOPTRD },
-      { efXVG, "-if",       "imdforces", ffOPTWR },
-      { efXVG, "-swap",     "swapions",  ffOPTWR }}};
-    /*! \brief Filename arguments.
-     *
-     * Provided for compatibility with old C-style code accessing
-     * command-line arguments that are file names. */
-    t_filenm *fnm = filenames.data();
-    /*! \brief Number of filename argument values.
-     *
-     * Provided for compatibility with old C-style code accessing
-     * command-line arguments that are file names. */
-    int nfile = filenames.size();
+    auto filenames = gmx::makeDefaultMdFilenames();
 
     //! Print a warning if any force is larger than this (in kJ/mol nm).
     real                             pforce = -1;
@@ -440,7 +397,8 @@ int gmx_mdrun(int argc, char *argv[])
         PCA_Flags |= PCA_DISABLE_INPUT_FILE_CHECKING;
     }
 
-    if (!parse_common_args(&argc, argv, PCA_Flags, nfile, fnm, asize(pa), pa,
+    if (!parse_common_args(&argc, argv, PCA_Flags,
+                           static_cast<int>(filenames->size()), filenames->data(), asize(pa), pa,
                            asize(desc), desc, 0, nullptr, &oenv))
     {
         sfree(cr);
@@ -489,7 +447,8 @@ int gmx_mdrun(int argc, char *argv[])
     hw_opt.thread_affinity = nenum(thread_aff_opt_choices);
 
     // now check for a multi-simulation
-    gmx::ArrayRef<const std::string> multidir = opt2fnsIfOptionSet("-multidir", nfile, fnm);
+    gmx::ArrayRef<const std::string> multidir = opt2fnsIfOptionSet("-multidir",
+                                                                   static_cast<int>(filenames->size()), filenames->data());
 
     if (replExParams.exchangeInterval != 0 && multidir.size() < 2)
     {
@@ -517,7 +476,8 @@ int gmx_mdrun(int argc, char *argv[])
     }
 #endif
 
-    if (!opt2bSet("-cpi", nfile, fnm))
+    if (!opt2bSet("-cpi",
+                  static_cast<int>(filenames->size()), filenames->data()))
     {
         // If we are not starting from a checkpoint we never allow files to be appended
         // to, since that has caused a ton of strange behaviour and bugs in the past.
@@ -537,9 +497,15 @@ int gmx_mdrun(int argc, char *argv[])
 
     continuationOptions.appendFilesOptionSet = opt2parg_bSet("-append", asize(pa), pa);
 
-    handleRestart(cr, ms, bTryToAppendFiles, nfile, fnm, &continuationOptions.appendFiles, &continuationOptions.startedFromCheckpoint);
+    handleRestart(cr, ms, bTryToAppendFiles,
+                  static_cast<int>(filenames->size()),
+                  filenames->data(),
+                  &continuationOptions.appendFiles,
+                  &continuationOptions.startedFromCheckpoint);
 
-    mdrunOptions.rerun            = opt2bSet("-rerun", nfile, fnm);
+    mdrunOptions.rerun            = opt2bSet("-rerun",
+                                             static_cast<int>(filenames->size()),
+                                             filenames->data());
     mdrunOptions.ntompOptionIsSet = opt2parg_bSet("-ntomp", asize(pa), pa);
 
     /* We postpone opening the log file if we are appending, so we can
@@ -547,8 +513,12 @@ int gmx_mdrun(int argc, char *argv[])
        there instead.  */
     if (MASTER(cr) && !continuationOptions.appendFiles)
     {
-        gmx_log_open(ftp2fn(efLOG, nfile, fnm), cr,
-                     continuationOptions.appendFiles, &fplog);
+        gmx_log_open(ftp2fn(efLOG,
+                            static_cast<int>(filenames->size()),
+                            filenames->data()),
+                     cr,
+                     continuationOptions.appendFiles,
+                     &fplog);
     }
     else
     {
@@ -568,7 +538,7 @@ int gmx_mdrun(int argc, char *argv[])
     builder.setHardwareOptions(hw_opt);
     builder.setVerletList(nstlist_cmdline);
     builder.setReplicaExchange(replExParams);
-    builder.setFilenames(filenames);
+    builder.setFilenames(std::move(filenames));
     builder.setCommunications(&cr);
     builder.addMultiSim(&ms);
     builder.setOutputContext(&oenv, &fplog);

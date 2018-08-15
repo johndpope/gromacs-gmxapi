@@ -50,6 +50,7 @@
 #include <cassert>
 #include <csignal>
 #include <cstdlib>
+#include <cerrno>
 #include <cstring>
 
 #include <algorithm>
@@ -137,25 +138,6 @@
 #include "corewrap.h"
 #endif
 
-/*! \brief Return whether the command-line parameter that
- *  will trigger a multi-simulation is set */
-static bool is_multisim_option_set(int argc, const char *const argv[])
-{
-    bool isSet{false};
-    for (int i = 0; i < argc; ++i)
-    {
-        if (strcmp(argv[i], "-multidir") == 0)
-        {
-            isSet = true;
-            // Logically, we could break here, but this is not performance
-            // critical and we would like simple control flow that can be
-            // easily inlined.
-            //break;
-        }
-    }
-    return isSet;
-}
-
 namespace gmx
 {
 
@@ -170,16 +152,113 @@ static void threadMpiMdrunnerAccessBarrier()
 #endif
 }
 
-void Mdrunner::reinitializeOnSpawnedThread()
+/*!
+ * \brief Clone the parameters structure that holds filenames for MD code.
+ * 
+ * After the user interface has finished processing user input and default
+ * values for the filenames container, make a copy for library consumers. This
+ * should only be necessary on spawned threads to propagate user input from the
+ * master thread servicing the UI.
+ * 
+ * This and \see makeDefaultMdFilenames are intended as temporary utilities
+ * until the ownership of filename options can be established and the option
+ * handling modernized.
+ * 
+ * \param source Fully configured filenames container user interface.
+ * \return ownership of a new filenames container
+ */
+std::unique_ptr<std::array<t_filenm, 34>> cloneMdFilenames(const std::array<t_filenm, 34>& source);
+
+std::unique_ptr<std::array<t_filenm, 34>> cloneMdFilenames(const std::array<t_filenm, 34>& source)
+{
+    auto filenames = gmx::compat::make_unique<std::array<t_filenm, 34>>();
+    for (size_t i = 0; i < source.size(); ++i)
+    {
+        // Copy the enumerated file type
+        (*filenames)[i].ftp = source[i].ftp;
+        // Copy the pointers to the const char* CLI flags / parameter names
+        (*filenames)[i].opt = source[i].opt;
+        (*filenames)[i].fn = source[i].fn;
+        (*filenames)[i].flag = source[i].flag;
+        // Copy contents of vector of strings, if any.
+        (*filenames)[i].filenames = source[i].filenames;
+    }
+    return filenames;
+}
+
+/*!
+ * \brief Filenames and properties from command-line argument values.
+ *
+ * \return ownership of a new filenames container with default values.
+ */
+std::unique_ptr<std::array<t_filenm, 34>> makeDefaultMdFilenames()
+{
+    auto filenames = gmx::compat::make_unique<std::array<t_filenm, 34>>();
+    *filenames = {{{ efTPR, nullptr,     nullptr,     ffREAD },
+                      { efTRN, "-o",        nullptr,     ffWRITE },
+                      { efCOMPRESSED, "-x", nullptr,     ffOPTWR },
+                      { efCPT, "-cpi",      nullptr,     ffOPTRD | ffALLOW_MISSING },
+                      { efCPT, "-cpo",      nullptr,     ffOPTWR },
+                      { efSTO, "-c",        "confout",   ffWRITE },
+                      { efEDR, "-e",        "ener",      ffWRITE },
+                      { efLOG, "-g",        "md",        ffWRITE },
+                      { efXVG, "-dhdl",     "dhdl",      ffOPTWR },
+                      { efXVG, "-field",    "field",     ffOPTWR },
+                      { efXVG, "-table",    "table",     ffOPTRD },
+                      { efXVG, "-tablep",   "tablep",    ffOPTRD },
+                      { efXVG, "-tableb",   "table",     ffOPTRDMULT },
+                      { efTRX, "-rerun",    "rerun",     ffOPTRD },
+                      { efXVG, "-tpi",      "tpi",       ffOPTWR },
+                      { efXVG, "-tpid",     "tpidist",   ffOPTWR },
+                      { efEDI, "-ei",       "sam",       ffOPTRD },
+                      { efXVG, "-eo",       "edsam",     ffOPTWR },
+                      { efXVG, "-devout",   "deviatie",  ffOPTWR },
+                      { efXVG, "-runav",    "runaver",   ffOPTWR },
+                      { efXVG, "-px",       "pullx",     ffOPTWR },
+                      { efXVG, "-pf",       "pullf",     ffOPTWR },
+                      { efXVG, "-ro",       "rotation",  ffOPTWR },
+                      { efLOG, "-ra",       "rotangles", ffOPTWR },
+                      { efLOG, "-rs",       "rotslabs",  ffOPTWR },
+                      { efLOG, "-rt",       "rottorque", ffOPTWR },
+                      { efMTX, "-mtx",      "nm",        ffOPTWR },
+                      { efRND, "-multidir", nullptr,     ffOPTRDMULT},
+                      { efXVG, "-awh",      "awhinit",   ffOPTRD },
+                      { efDAT, "-membed",   "membed",    ffOPTRD },
+                      { efTOP, "-mp",       "membed",    ffOPTRD },
+                      { efNDX, "-mn",       "membed",    ffOPTRD },
+                      { efXVG, "-if",       "imdforces", ffOPTWR },
+                      { efXVG, "-swap",     "swapions",  ffOPTWR }}};
+    return filenames;
+}
+
+std::unique_ptr<Mdrunner> Mdrunner::cloneOnSpawnedThread() const
 {
     threadMpiMdrunnerAccessBarrier();
+    auto newRunner = gmx::compat::make_unique<Mdrunner>();
 
-    cr  = reinitialize_commrec_for_this_thread(cr);
+    newRunner->cr  = reinitialize_commrec_for_this_thread(cr);
 
-    GMX_RELEASE_ASSERT(!MASTER(cr), "reinitializeOnSpawnedThread should only be called on spawned threads");
+    GMX_RELEASE_ASSERT(!MASTER(newRunner->cr), "reinitializeOnSpawnedThread should only be called on spawned threads");
+
+    // Copy members of master runner.
+    newRunner->hw_opt = hw_opt;
+    newRunner->filenames = cloneMdFilenames(*filenames);
+
+    newRunner->oenv = oenv; // non-owning pointer
+    newRunner->mdrunOptions = mdrunOptions;
+    newRunner->domdecOptions = domdecOptions;
+    newRunner->nbpu_opt = nbpu_opt; // pointer to const C string
+    newRunner->pme_opt = pme_opt; // pointer to const C string
+    newRunner->pme_fft_opt = pme_fft_opt; // pointer to const C string
+    newRunner->nstlist_cmdline = nstlist_cmdline;
+    newRunner->replExParams = replExParams;
+    newRunner->pforce = pforce;
+    newRunner->ms = ms; // non-owning pointer (does not need reinitialization?)
 
     // Only the master rank writes to the log file
-    fplog = nullptr;
+    newRunner->fplog = nullptr;
+
+    return newRunner;
 }
 
 /*! \brief The callback used for running on spawned threads.
@@ -196,9 +275,8 @@ static void mdrunner_start_fn(const void *arg)
         /* copy the arg list to make sure that it's thread-local. This
            doesn't copy pointed-to items, of course; fnm, cr and fplog
            are reset in the call below, all others should be const. */
-        gmx::Mdrunner mdrunner = *masterMdrunner;
-        mdrunner.reinitializeOnSpawnedThread();
-        mdrunner.mdrunner();
+        std::unique_ptr<gmx::Mdrunner> mdrunner = masterMdrunner->cloneOnSpawnedThread();
+        mdrunner->mdrunner();
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 }
@@ -464,7 +542,7 @@ int Mdrunner::mdrunner()
         fplog = nullptr;
     }
 
-    bool doMembed = opt2bSet("-membed", nfile, fnm);
+    bool doMembed = opt2bSet("-membed", filenames->size(), filenames->data());
     bool doRerun  = mdrunOptions.rerun;
 
     // Handle task-assignment related user options.
@@ -566,7 +644,7 @@ int Mdrunner::mdrunner()
         globalState = compat::make_unique<t_state>();
 
         /* Read (nearly) all data required for the simulation */
-        read_tpx_state(ftp2fn(efTPR, nfile, fnm), inputrec, globalState.get(), &mtop);
+        read_tpx_state(ftp2fn(efTPR, filenames->size(), filenames->data()), inputrec, globalState.get(), &mtop);
 
         if (inputrec->cutoff_scheme != ecutsVERLET)
         {
@@ -825,7 +903,7 @@ int Mdrunner::mdrunner()
          */
         gmx_bool bReadEkin;
 
-        load_checkpoint(opt2fn_master("-cpi", nfile, fnm, cr), &fplog,
+        load_checkpoint(opt2fn_master("-cpi", filenames->size(), filenames->data(), cr), &fplog,
                         cr, domdecOptions.numCells,
                         inputrec, globalState.get(),
                         &bReadEkin, &observablesHistory,
@@ -841,7 +919,7 @@ int Mdrunner::mdrunner()
 
     if (SIMMASTER(cr) && continuationOptions.appendFiles)
     {
-        gmx_log_open(ftp2fn(efLOG, nfile, fnm), cr,
+        gmx_log_open(ftp2fn(efLOG, filenames->size(), filenames->data()), cr,
                      continuationOptions.appendFiles, &fplog);
         logOwner = buildLogger(fplog, nullptr);
         mdlog    = logOwner.logger();
@@ -1166,7 +1244,9 @@ int Mdrunner::mdrunner()
         /* Note that membed cannot work in parallel because mtop is
          * changed here. Fix this if we ever want to make it run with
          * multiple ranks. */
-        membed = init_membed(fplog, nfile, fnm, &mtop, inputrec, globalState.get(), cr, &mdrunOptions.checkpointOptions.period);
+        membed = init_membed(fplog, filenames->size(), filenames->data(), &mtop, inputrec, globalState.get(), cr,
+            &mdrunOptions
+        .checkpointOptions.period);
     }
 
     std::unique_ptr<MDAtoms> mdAtoms;
@@ -1179,9 +1259,9 @@ int Mdrunner::mdrunner()
         fr->forceProviders = mdModules->initForceProviders();
         init_forcerec(fplog, mdlog, fr, fcd,
                       inputrec, &mtop, cr, box,
-                      opt2fn("-table", nfile, fnm),
-                      opt2fn("-tablep", nfile, fnm),
-                      opt2fns("-tableb", nfile, fnm),
+                      opt2fn("-table", filenames->size(), filenames->data()),
+                      opt2fn("-tablep", filenames->size(), filenames->data()),
+                      opt2fns("-tableb", filenames->size(), filenames->data()),
                       *hwinfo, nonbondedDeviceInfo,
                       FALSE,
                       pforce);
@@ -1321,7 +1401,7 @@ int Mdrunner::mdrunner()
             if (EI_DYNAMICS(inputrec->eI) && MASTER(cr))
             {
                 init_pull_output_files(inputrec->pull_work,
-                                       nfile, fnm, oenv,
+                                       filenames->size(), filenames->data(), oenv,
                                        continuationOptions);
             }
         }
@@ -1330,13 +1410,13 @@ int Mdrunner::mdrunner()
         if (inputrec->bRot)
         {
             /* Initialize enforced rotation code */
-            enforcedRotation = init_rot(fplog, inputrec, nfile, fnm, cr, &atomSets, globalState.get(), &mtop, oenv, mdrunOptions);
+            enforcedRotation = init_rot(fplog, inputrec, filenames->size(), filenames->data(), cr, &atomSets, globalState.get(), &mtop, oenv, mdrunOptions);
         }
 
         if (inputrec->eSwapCoords != eswapNO)
         {
             /* Initialize ion swapping code */
-            init_swapcoords(fplog, inputrec, opt2fn_master("-swap", nfile, fnm, cr),
+            init_swapcoords(fplog, inputrec, opt2fn_master("-swap", filenames->size(), filenames->data(), cr),
                             &mtop, globalState.get(), &observablesHistory,
                             cr, &atomSets, oenv, mdrunOptions);
         }
@@ -1344,7 +1424,7 @@ int Mdrunner::mdrunner()
         /* Let makeConstraints know whether we have essential dynamics constraints.
          * TODO: inputrec should tell us whether we use an algorithm, not a file option or the checkpoint
          */
-        bool doEssentialDynamics = (opt2fn_null("-ei", nfile, fnm) != nullptr || observablesHistory.edsamHistory);
+        bool doEssentialDynamics = (opt2fn_null("-ei", filenames->size(), filenames->data()) != nullptr || observablesHistory.edsamHistory);
         auto constr              = makeConstraints(mtop, *inputrec, doEssentialDynamics,
                                                    fplog, *mdAtoms->mdatoms(),
                                                    cr, *ms, nrnb, wcycle, fr->bMolPBC);
@@ -1362,7 +1442,7 @@ int Mdrunner::mdrunner()
 
         /* Now do whatever the user wants us to do (how flexible...) */
         Integrator integrator {
-            fplog, cr, ms, mdlog, nfile, fnm,
+            fplog, cr, ms, mdlog, static_cast<int>(filenames->size()), filenames->data(),
             oenv,
             mdrunOptions,
             vsite, constr.get(),
@@ -1466,6 +1546,16 @@ int Mdrunner::mdrunner()
     }
 #endif
 
+    // If log file is open, try to flush it before we return control to the API
+    if (MASTER(cr) && fplog != nullptr)
+    {
+        // If fplog is already closed, but has not been set to nullptr, we expect errno to be set, but we don't care,
+        // so we will make sure to leave it in the same state we found it.
+        const auto tempErrno = errno;
+        fflush(fplog);
+        errno = tempErrno;
+    }
+
     return rc;
 }
 
@@ -1483,7 +1573,7 @@ class Mdrunner::BuilderImplementation
         bool setHardwareOptions(const gmx_hw_opt_t& options);
         bool setVerletList(int nstlist);
         bool setReplicaExchange(const ReplicaExchangeParameters& params);
-        bool setFilenames(const std::array<t_filenm, 34>& filenames);
+        bool setFilenames(std::unique_ptr<std::array<t_filenm, 34>> filenames);
         bool setCommunications(t_commrec** communicator);
         bool addMultiSim(gmx_multisim_t** multisim);
         bool setOutputContext(gmx_output_env_t** outputEnvironment, FILE** logFile);
@@ -1497,7 +1587,7 @@ class Mdrunner::BuilderImplementation
         gmx_hw_opt_t hardwareOptions_;
         ReplicaExchangeParameters replicaExchangeParameters_;
         int nstlist_;
-        std::array<t_filenm, 34> filenames_;
+        std::unique_ptr<std::array<t_filenm, 34>> filenames_;
         //! Non-owning communicator handle.
         std::unique_ptr<t_commrec*> communicator_;
         //! Non-owning multisim communicator handle.
@@ -1511,7 +1601,7 @@ class Mdrunner::BuilderImplementation
 
 Mdrunner::BuilderImplementation::BuilderImplementation() :
     nstlist_{0},
-    filenames_{{}},
+    filenames_{nullptr},
     communicator_{gmx::compat::make_unique<t_commrec*>()},
     multisim_{gmx::compat::make_unique<gmx_multisim_t*>()},
     outputEnvironment_{gmx::compat::make_unique<gmx_output_env_t*>()},
@@ -1564,14 +1654,9 @@ bool Mdrunner::BuilderImplementation::setReplicaExchange(const ReplicaExchangePa
     return true;
 }
 
-bool Mdrunner::BuilderImplementation::setFilenames(const std::array<t_filenm, 34>& filenames)
+bool Mdrunner::BuilderImplementation::setFilenames(std::unique_ptr<std::array<t_filenm, 34>> filenames)
 {
-    for(size_t i=0; i < filenames.size(); ++i)
-    {
-        filenames_[i].ftp = filenames[i].ftp;
-        filenames_[i].flag = filenames[i].flag;
-        filenames_[i].filenames = filenames[i].filenames;
-    }
+    filenames_ = std::move(filenames);
     return true;
 }
 
@@ -1606,15 +1691,8 @@ std::unique_ptr<Mdrunner> Mdrunner::BuilderImplementation::build(const char* nbp
     newRunner->nstlist_cmdline = nstlist_;
     newRunner->replExParams = replicaExchangeParameters_;
 
-    for(size_t i=0; i < filenames_.size(); ++i)
-    {
-        newRunner->filenames[i].ftp = filenames_[i].ftp;
-        newRunner->filenames[i].flag = filenames_[i].flag;
-        newRunner->filenames[i].filenames = filenames_[i].filenames;
-    }
-
-    newRunner->fnm = newRunner->filenames.data();
-    newRunner->nfile = newRunner->filenames.size();
+    assert(filenames_);
+    newRunner->filenames = std::move(filenames_);
 
     newRunner->cr = *communicator_.release();
     newRunner->ms = *multisim_.release();
@@ -1680,9 +1758,9 @@ MdrunnerBuilder& MdrunnerBuilder::setReplicaExchange(const ReplicaExchangeParame
     return *this;
 }
 
-MdrunnerBuilder& MdrunnerBuilder::setFilenames(const std::array<t_filenm, 34>& filenames)
+MdrunnerBuilder& MdrunnerBuilder::setFilenames(std::unique_ptr<std::array<t_filenm, 34>> filenames)
 {
-    impl_->setFilenames(filenames);
+    impl_->setFilenames(std::move(filenames));
     return *this;
 }
 

@@ -62,6 +62,13 @@ struct t_commrec;
 namespace gmx
 {
 
+/*!
+ * \brief Create the default set of MD filename options.
+ *
+ * \return Ownership of a new filename option container.
+ */
+std::unique_ptr<std::array<t_filenm, 34>> makeDefaultMdFilenames();
+
 /*! \libinternal \brief Runner object for supporting setup and execution of mdrun.
  *
  * This class has responsibility for the lifetime of data structures
@@ -88,51 +95,9 @@ class Mdrunner
         //! Parallelism-related user options.
         gmx_hw_opt_t             hw_opt;
         //! Filenames and properties from command-line argument values.
-        std::array<t_filenm, 34> filenames =
-        {{{ efTPR, nullptr,     nullptr,     ffREAD },
-          { efTRN, "-o",        nullptr,     ffWRITE },
-          { efCOMPRESSED, "-x", nullptr,     ffOPTWR },
-          { efCPT, "-cpi",      nullptr,     ffOPTRD | ffALLOW_MISSING },
-          { efCPT, "-cpo",      nullptr,     ffOPTWR },
-          { efSTO, "-c",        "confout",   ffWRITE },
-          { efEDR, "-e",        "ener",      ffWRITE },
-          { efLOG, "-g",        "md",        ffWRITE },
-          { efXVG, "-dhdl",     "dhdl",      ffOPTWR },
-          { efXVG, "-field",    "field",     ffOPTWR },
-          { efXVG, "-table",    "table",     ffOPTRD },
-          { efXVG, "-tablep",   "tablep",    ffOPTRD },
-          { efXVG, "-tableb",   "table",     ffOPTRDMULT },
-          { efTRX, "-rerun",    "rerun",     ffOPTRD },
-          { efXVG, "-tpi",      "tpi",       ffOPTWR },
-          { efXVG, "-tpid",     "tpidist",   ffOPTWR },
-          { efEDI, "-ei",       "sam",       ffOPTRD },
-          { efXVG, "-eo",       "edsam",     ffOPTWR },
-          { efXVG, "-devout",   "deviatie",  ffOPTWR },
-          { efXVG, "-runav",    "runaver",   ffOPTWR },
-          { efXVG, "-px",       "pullx",     ffOPTWR },
-          { efXVG, "-pf",       "pullf",     ffOPTWR },
-          { efXVG, "-ro",       "rotation",  ffOPTWR },
-          { efLOG, "-ra",       "rotangles", ffOPTWR },
-          { efLOG, "-rs",       "rotslabs",  ffOPTWR },
-          { efLOG, "-rt",       "rottorque", ffOPTWR },
-          { efMTX, "-mtx",      "nm",        ffOPTWR },
-          { efRND, "-multidir", nullptr,     ffOPTRDMULT},
-          { efXVG, "-awh",      "awhinit",   ffOPTRD },
-          { efDAT, "-membed",   "membed",    ffOPTRD },
-          { efTOP, "-mp",       "membed",    ffOPTRD },
-          { efNDX, "-mn",       "membed",    ffOPTRD },
-          { efXVG, "-if",       "imdforces", ffOPTWR },
-          { efXVG, "-swap",     "swapions",  ffOPTWR }}};
-        /*! \brief Filename arguments.
-         *
-         * Provided for compatibility with old C-style code accessing
-         * command-line arguments that are file names. */
-        t_filenm *fnm = filenames.data();
-        /*! \brief Number of filename argument values.
-         *
-         * Provided for compatibility with old C-style code accessing
-         * command-line arguments that are file names. */
-        int nfile = filenames.size();
+
+        std::unique_ptr<std::array<t_filenm, 34>> filenames{nullptr};
+
         //! Output context for writing text files
         gmx_output_env_t                *oenv = nullptr;
         //! Ongoing collection of mdrun options
@@ -178,7 +143,16 @@ class Mdrunner
          * then they are initialized with any default member initializer specified
          * when they were declared, or default initialized. */
         Mdrunner() = default;
+
         ~Mdrunner();
+
+        // Copy requires special attention. Use clone methods.
+        Mdrunner(const Mdrunner &)            = delete;
+        Mdrunner &operator=(const Mdrunner &) = delete;
+
+        // Allow move
+//        Mdrunner(Mdrunner &&) noexcept;
+//        Mdrunner &operator=(Mdrunner &&) noexcept;
 
         /*! \brief Driver routine, that calls the different simulation methods. */
         /*!
@@ -192,7 +166,16 @@ class Mdrunner
          *
          * \todo Can this be refactored so that the Mdrunner on a spawned thread is
          * constructed ready to use? */
-        void reinitializeOnSpawnedThread();
+        // Replace with cloneOnSpawnedThread to get a new ready-to-use Mdrunner on the new thread.
+//        void reinitializeOnSpawnedThread();
+
+        /*! \brief Initializes a new Mdrunner from the master.
+         *
+         * Run in a new thread from a const pointer to the master.
+         * \returns New Mdrunner instance suitable for running in additional threads.
+         */
+        std::unique_ptr<Mdrunner> cloneOnSpawnedThread() const;
+
 };
 
 /*! \libinternal
@@ -332,10 +315,18 @@ class MdrunnerBuilder final
         /*!
          * \brief Set I/O files.
          *
-         * \param filenames container of filename data to copy.
-         * \return
+         * Borrow a container of t_filenm. Note that std::array<t_filenm> is
+         * not copyable, moveable, or assignable. Each element must be uniquely
+         * created in one place, but some members of the t_filenm elements are
+         * updated in various scopes.
+         *
+         * It is the responsibility of the calling code to make sure that the
+         * pointer remains valid for the lifetime of the MdrunnerBuilder and
+         * its product, the Runner.
+         *
+         * \param filenames Borrowed pointer to container of t_filename.
          */
-        MdrunnerBuilder &setFilenames(const std::array<t_filenm, 34> &filenames);
+        MdrunnerBuilder &setFilenames(std::unique_ptr<std::array<t_filenm, 34>> filenames);
 
         ~MdrunnerBuilder();
 

@@ -57,10 +57,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <gromacs/compat/make_unique.h>
 
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/commandline/pargs.h"
+#include "gromacs/compat/make_unique.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/mdlib/main.h"
@@ -548,17 +548,5 @@ int gmx_mdrun(int argc, char *argv[])
 
     rc = runner->mdrunner();
 
-    /* Log file has to be closed in mdrunner if we are appending to it
-       (fplog not set here) */
-    if (fplog != nullptr)
-    {
-        gmx_log_close(fplog);
-    }
-
-    if (GMX_LIB_MPI)
-    {
-        done_commrec(cr);
-    }
-    done_multisim(ms);
     return rc;
 }

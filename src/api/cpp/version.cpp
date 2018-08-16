@@ -26,7 +26,7 @@ std::string Version::release()
     return GMXAPI_RELEASE;
 }
 
-bool Version::has_feature(const std::string& featurename)
+bool Version::has_feature(const std::string &featurename)
 {
     // For features introduced after version 1.0, we can consult a map somewhere.
     (void)featurename;

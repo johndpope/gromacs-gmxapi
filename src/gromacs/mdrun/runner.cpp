@@ -54,6 +54,7 @@
 #include <cstring>
 
 #include <algorithm>
+#include "gromacs/restraint/manager.h"
 #include "gromacs/utility/arraysize.h"
 #include "gromacs/mdrunutility/handlerestart.h"
 
@@ -108,6 +109,8 @@
 #include "gromacs/mdtypes/state.h"
 #include "gromacs/pbcutil/pbc.h"
 #include "gromacs/pulling/pull.h"
+#include "gromacs/restraint/restraintpotential.h"
+#include "gromacs/restraint/restraintmdmodule.h"
 #include "gromacs/pulling/pull_rotation.h"
 #include "gromacs/swap/swapcoords.h"
 #include "gromacs/taskassignment/decidegpuusage.h"
@@ -133,6 +136,7 @@
 #include "gromacs/utility/stringutil.h"
 
 #include "integrator.h"
+#include "context.h"
 
 #ifdef GMX_FAHCORE
 #include "corewrap.h"
@@ -154,16 +158,16 @@ static void threadMpiMdrunnerAccessBarrier()
 
 /*!
  * \brief Clone the parameters structure that holds filenames for MD code.
- * 
+ *
  * After the user interface has finished processing user input and default
  * values for the filenames container, make a copy for library consumers. This
  * should only be necessary on spawned threads to propagate user input from the
  * master thread servicing the UI.
- * 
+ *
  * This and \see makeDefaultMdFilenames are intended as temporary utilities
  * until the ownership of filename options can be established and the option
  * handling modernized.
- * 
+ *
  * \param source Fully configured filenames container user interface.
  * \return ownership of a new filenames container
  */
@@ -254,6 +258,11 @@ std::unique_ptr<Mdrunner> Mdrunner::cloneOnSpawnedThread() const
     newRunner->replExParams = replExParams;
     newRunner->pforce = pforce;
     newRunner->ms = ms; // non-owning pointer (does not need reinitialization?)
+
+    // All runners in the same process share a restraint manager because it is
+    // part of the interface to the client code, which is associated with the
+    // original thread.
+    newRunner->restraintManager_ = restraintManager_;
 
     // Only the master rank writes to the log file
     newRunner->fplog = nullptr;
@@ -644,7 +653,10 @@ int Mdrunner::mdrunner()
         globalState = compat::make_unique<t_state>();
 
         /* Read (nearly) all data required for the simulation */
-        read_tpx_state(ftp2fn(efTPR, filenames->size(), filenames->data()), inputrec, globalState.get(), &mtop);
+        read_tpx_state(ftp2fn(efTPR, filenames->size(), filenames->data()),
+            inputrec,
+            globalState.get(),
+            &mtop);
 
         if (inputrec->cutoff_scheme != ecutsVERLET)
         {
@@ -777,6 +789,17 @@ int Mdrunner::mdrunner()
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 
+    // Build restraints.
+    auto pullers = restraintManager_->getSpec();
+    if (!pullers.empty())
+    {
+        for (auto && puller : pullers)
+        {
+            auto module = ::gmx::RestraintMDModule::create(puller,
+                                                           puller->sites());
+            mdModules->add(std::move(module));
+        }
+    }
     // TODO: Error handling
     mdModules->assignOptionsToModules(*inputrec->params, nullptr);
 
@@ -1257,6 +1280,7 @@ int Mdrunner::mdrunner()
         /* Initiate forcerecord */
         fr                 = mk_forcerec();
         fr->forceProviders = mdModules->initForceProviders();
+        // Threads have been launched and DD initialized
         init_forcerec(fplog, mdlog, fr, fcd,
                       inputrec, &mtop, cr, box,
                       opt2fn("-table", filenames->size(), filenames->data()),
@@ -1440,6 +1464,7 @@ int Mdrunner::mdrunner()
                             fr->cginfo_mb);
         }
 
+        auto context = gmx::md::Context(*this);
         /* Now do whatever the user wants us to do (how flexible...) */
         Integrator integrator {
             fplog, cr, ms, mdlog, static_cast<int>(filenames->size()), filenames->data(),
@@ -1559,7 +1584,52 @@ int Mdrunner::mdrunner()
     return rc;
 }
 
-Mdrunner::~Mdrunner() = default;
+Mdrunner::~Mdrunner()
+{
+    if (MASTER(cr))
+    {
+        // Clean up of the Manager singleton.
+        // This will end up getting called on every thread-MPI rank, which is okay, but unnecessary. There should probably
+        // be a simulation shutdown hook and this manager probably shouldn't be a singleton.
+        restraintManager_->clear();
+        assert(restraintManager_->countRestraints() == 0);
+
+        /* Log file has to be closed in mdrunner if we are appending to it
+           (fplog not set here) */
+        if (fplog != nullptr)
+        {
+            gmx_log_close(fplog);
+        }
+
+        if (GMX_LIB_MPI)
+        {
+            done_commrec(cr);
+        }
+        done_multisim(ms);
+    }
+};
+
+void Mdrunner::addPullPotential(std::shared_ptr<gmx::IRestraintPotential> puller,
+                                std::string                               name)
+{
+    assert(restraintManager_ != nullptr);
+//    std::cout << "Registering restraint named " << name << std::endl;
+
+    // When multiple restraints are used, it may be wasteful to register them separately.
+    // Maybe instead register a Restraint Manager as a force provider.
+    restraintManager_->addToSpec(std::move(puller),
+                                 std::move(name));
+}
+
+void Mdrunner::declareFinalStep()
+{
+    simulationSignals_[eglsSTOPCOND].sig = true;
+}
+
+SimulationSignals *Mdrunner::signals() const
+{
+    return &simulationSignals_;
+}
 
 class Mdrunner::BuilderImplementation
 {
@@ -1703,6 +1773,7 @@ std::unique_ptr<Mdrunner> Mdrunner::BuilderImplementation::build(const char* nbp
     newRunner->nbpu_opt = nbpu_opt;
     newRunner->pme_opt = pme_opt;
     newRunner->pme_fft_opt = pme_fft_opt;
+    newRunner->restraintManager_ = gmx::restraint::Manager::instance();
     return newRunner;
 }
 

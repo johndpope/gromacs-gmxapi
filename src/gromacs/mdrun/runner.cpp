@@ -1464,26 +1464,28 @@ int Mdrunner::mdrunner()
                             fr->cginfo_mb);
         }
 
-        auto context = gmx::md::Context(*this);
+//        auto context = gmx::md::Context(*this);
         /* Now do whatever the user wants us to do (how flexible...) */
-        Integrator integrator {
-            fplog, cr, ms, mdlog, static_cast<int>(filenames->size()), filenames->data(),
-            oenv,
-            mdrunOptions,
-            vsite, constr.get(),
-            enforcedRotation ? enforcedRotation->getLegacyEnfrot() : nullptr,
-            deform.get(),
-            mdModules->outputProvider(),
-            inputrec, &mtop,
-            fcd,
-            globalState.get(),
-            &observablesHistory,
-            mdAtoms.get(), nrnb, wcycle, fr,
-            replExParams,
-            membed,
-            walltime_accounting
-        };
-        integrator.run(inputrec->eI);
+
+         IntegratorBuilder builder = IntegratorBuilder::create(SimulationMethod(inputrec->eI));
+         builder.setParams(
+                    fplog, cr, ms, mdlog, static_cast<int>(filenames->size()), filenames->data(),
+                    oenv,
+                    mdrunOptions,
+                    vsite, constr.get(),
+                    enforcedRotation ? enforcedRotation->getLegacyEnfrot() : nullptr,
+                    deform.get(),
+                    mdModules->outputProvider(),
+                    inputrec, &mtop,
+                    fcd,
+                    globalState.get(),
+                    &observablesHistory,
+                    mdAtoms.get(), nrnb, wcycle, fr,
+                    replExParams,
+                    membed,
+                    walltime_accounting);
+         std::unique_ptr<IIntegrator> integrator = builder.build();
+         integrator->run();
 
         if (inputrec->bPull)
         {

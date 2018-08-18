@@ -44,6 +44,7 @@
 
 #include "integrator.h"
 
+#include "gromacs/mdrun/md.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/utility/exceptions.h"
 
@@ -56,17 +57,6 @@ void IntegratorDispatcher::run()
     unsigned int ei{method_};
     switch (ei)
     {
-        case eiMD:
-        case eiBD:
-        case eiSD1:
-        case eiVV:
-        case eiVVAK:
-            if (!EI_DYNAMICS(ei))
-            {
-                GMX_THROW(APIError("do_md integrator would be called for a non-dynamical integrator"));
-            }
-            do_md();
-            break;
         case eiSteep:
             do_steep();
             break;
@@ -155,7 +145,6 @@ class IntegratorDispatcherBuilder : public IntegratorBuilder::Base
 
         std::unique_ptr<IIntegrator> build() override
         {
-            // To do: convert to exception.
             // Indicates a usage error, not a violation of an established invariant.
             if(!paramsContainer_)
             {
@@ -205,7 +194,24 @@ IntegratorBuilder IntegratorBuilder::create(const SimulationMethod& integratorTy
     // Dispatch creation of an appropriate builder for the integration method.
     // Initially, the factory is not extensible and only has one catch-all builder
     // to dispatch to.
-    auto builderImpl = gmx::compat::make_unique<IntegratorDispatcherBuilder>(integratorType);
+    std::unique_ptr<IntegratorBuilder::Base> builderImpl;
+    auto method = static_cast<decltype(eiMD)>(integratorType.method_);
+    switch (method)
+    {
+        case eiMD:
+        case eiBD:
+        case eiSD1:
+        case eiVV:
+        case eiVVAK:
+            if (!EI_DYNAMICS(method))
+            {
+                GMX_THROW(APIError("do_md integrator would be called for a non-dynamical integrator"));
+            }
+            builderImpl = gmx::compat::make_unique<gmx::MDIntegrator::Builder>();
+            break;
+        default:
+            builderImpl = gmx::compat::make_unique<IntegratorDispatcherBuilder>(integratorType);
+    }
 
     IntegratorBuilder builder{std::move(builderImpl)};
 

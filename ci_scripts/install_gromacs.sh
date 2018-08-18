@@ -22,6 +22,7 @@ pushd build
          -DGMX_THREAD_MPI=$GMX_THREAD_MPI \
          -DCMAKE_INSTALL_PREFIX=$HOME/install/gromacs \
          ..
+    make -j2 check
     make -j2 install
 popd
 ccache -s

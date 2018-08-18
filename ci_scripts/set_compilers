@@ -2,8 +2,8 @@ export MPICC=`which mpicc`
 export MPICXX=`which mpicxx`
 
 if [ ${CI_MPI} -eq 0 ] ; then
-    export CC=`which ${C_COMPILER}`
-    export CXX=`which ${CXX_COMPILER}`
+    export CC=`which gcc-${GCC}`
+    export CXX=`which g++-${GCC}`
 else
     export CC=$MPICC
     export CXX=$MPICXX

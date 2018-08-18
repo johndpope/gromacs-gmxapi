@@ -25,6 +25,21 @@ namespace md
  * callers can get handles to the resources they need.
  *
  * Since those modules and resources don't exist yet, we're providing a few directly.
+ *
+ * An actual API Context should unambiguously point to the same shared resources
+ * and configuration throughout the call stack. It should be owned by the calling
+ * code and shared down into the library. For the most flexibility, the interface
+ * should be a handle that can be safely passed across API boundaries and should
+ * be resistant to misuse (sensible copy semantics and RAII state). Implementation
+ * details can be worked out for future versions.
+ *
+ * For this version, a copy of the Context refers to the same resources as the
+ * original and is guaranteed to continue to do so because the resources
+ * represented are invariant for the life of the Context. However,
+ *
+ * \warning
+ * This implementation does **not** own the resources it proxies and cannot
+ * extend their life time. Refer to gmxapi milestone 5, described at https://redmine.gromacs.org/issues/2587
  */
 class Context
 {

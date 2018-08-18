@@ -74,13 +74,16 @@ class MDIntegrator::Builder : public IntegratorBuilder::Base
         Builder();
         ~Builder() override;
 
+        Base& addContext(const md::Context& context) override;
+
         std::unique_ptr<IIntegrator> build() override;
 
-        IntegratorBuilder::DataSentry setAggregateAdapter(std::unique_ptr<IntegratorAggregateAdapter> dispatcher)
+        IntegratorBuilder::DataSentry setAggregateAdapter(std::unique_ptr<IntegratorAggregateAdapter> container)
         override;
 
     private:
-        std::unique_ptr<MDIntegrator::Impl> integrator_;
+        std::unique_ptr<IntegratorAggregateAdapter> container_;
+        std::unique_ptr<md::Context> context_;
 };
 
 }      // namespace gmx

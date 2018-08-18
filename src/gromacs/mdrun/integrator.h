@@ -50,6 +50,8 @@
 #include "gromacs/utility/basedefinitions.h"
 #include "gromacs/utility/real.h"
 
+#include "context.h"
+
 class energyhistory_t;
 struct gmx_enfrot;
 struct gmx_mtop_t;
@@ -433,6 +435,8 @@ class IntegratorBuilder final
         template<class ...ArgsT>
         DataSentry setParams(ArgsT&&... args);
 
+        IntegratorBuilder& addContext(const md::Context& context);
+
         /*!
          *
          * @return
@@ -471,6 +475,14 @@ class IntegratorBuilder::Base
          * \todo Return an RAII sentry object to check for parameter validity or changing scope.
          */
         virtual DataSentry setAggregateAdapter(std::unique_ptr<IntegratorAggregateAdapter> container);
+
+        /*!
+         * \brief
+         * \param context
+         * \return
+         */
+        virtual Base& addContext(const md::Context& context);
+
         virtual std::unique_ptr<IIntegrator> build() = 0;
 
 };

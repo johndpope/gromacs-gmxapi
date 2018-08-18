@@ -99,6 +99,13 @@ IntegratorBuilder::DataSentry IntegratorBuilder::Base::setAggregateAdapter(std::
     return {};
 }
 
+IntegratorBuilder::Base& IntegratorBuilder::Base::addContext(const md::Context&)
+{
+    // default behavior is to ignore the argument. Maybe a usage error should be
+    // thrown instead?
+    return *this;
+}
+
 IntegratorBuilder::Base::~Base() = default;
 
 class IntegratorDispatcherBuilder : public IntegratorBuilder::Base
@@ -218,6 +225,12 @@ IntegratorBuilder IntegratorBuilder::create(const SimulationMethod& integratorTy
 
     assert(builder.impl_);
     return builder;
+}
+
+IntegratorBuilder& IntegratorBuilder::addContext(const md::Context& context)
+{
+    impl_->addContext(context);
+    return *this;
 }
 
 IntegratorBuilder::DataSentry::~DataSentry() = default;

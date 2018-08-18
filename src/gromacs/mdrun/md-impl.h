@@ -22,6 +22,11 @@ class MDIntegrator::Impl
 
         ~Impl();
 
+        /*!
+         * \brief Provide the run() behavior for MDIntegrator.
+         */
+        void run();
+
         //! Handles logging.
         FILE                            *fplog;
         //! Handles communication.
@@ -73,7 +78,8 @@ class MDIntegrator::Impl
         //! Manages wall time accounting.
         gmx_walltime_accounting         *walltime_accounting;
 
-        void run();
+        
+        std::unique_ptr<md::Context> context_{nullptr};
 };
 
 } // end namespace gmx

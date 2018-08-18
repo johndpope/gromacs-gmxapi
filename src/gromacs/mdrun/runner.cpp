@@ -1464,7 +1464,6 @@ int Mdrunner::mdrunner()
                             fr->cginfo_mb);
         }
 
-//        auto context = gmx::md::Context(*this);
         /* Now do whatever the user wants us to do (how flexible...) */
 
          IntegratorBuilder builder = IntegratorBuilder::create(SimulationMethod(inputrec->eI));
@@ -1484,7 +1483,9 @@ int Mdrunner::mdrunner()
                     replExParams,
                     membed,
                     walltime_accounting);
-         std::unique_ptr<IIntegrator> integrator = builder.build();
+        auto context = gmx::md::Context(*this);
+        builder.addContext(context);
+        std::unique_ptr<IIntegrator> integrator = builder.build();
          integrator->run();
 
         if (inputrec->bPull)

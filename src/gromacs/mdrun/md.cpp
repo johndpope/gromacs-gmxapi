@@ -47,6 +47,7 @@
 
 #include "config.h"
 
+#include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>

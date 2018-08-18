@@ -39,11 +39,13 @@
  * \author Mark Abraham <mark.j.abraham@gmail.com>
  * \ingroup module_mdrun
  */
-#include "gromacs/compat/make_unique.h"
 #include "gmxpre.h"
 
 #include "integrator.h"
 
+#include <cassert>
+
+#include "gromacs/compat/make_unique.h"
 #include "gromacs/mdrun/md.h"
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/utility/exceptions.h"

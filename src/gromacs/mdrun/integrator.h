@@ -211,7 +211,7 @@ struct IntegratorParamsContainer
     // Aspects of the C++11 spec changed after GCC 4.8.5, and
     // compilation of the initializer list construction in runner.cpp
     // fails in GCC 4.8.5.
-    IntegratorDispatcher() = delete;
+    IntegratorParamsContainer() = delete;
 #endif
 };
 

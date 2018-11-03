@@ -59,7 +59,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__all__ = ['get_context', 'run']
+__all__ = ['get_context', 'run', 'make_input']
 
 # Import system facilities
 import logging
@@ -102,6 +102,45 @@ def run(work=None):
         status = session.run()
     return status
 
+
+def make_input(structure=None, topology=None, simulation_parameters=None, params=None):
+    """Establish a source of simulation inputs.
+
+    Args:
+        structure: Atomic configuration.
+        topology: Molecular topology and force field information.
+        simulation_parameters: MDP key-value pairs to override defaults (optional)
+        **kwargs: (optional)
+
+    Additional key word arguments are provided as parameters to the operations
+    consuming this input. See documentation for those operations for valid
+    key words and their use.
+
+    Returns:
+        WorkElement for GROMACS simulation input data.
+
+    The command returns a reference to a work graph node with the named outputs
+    `...`
+
+    """
+    pass
+
+def edit_params(input=None, **kwargs):
+    """Add an operation to a work graph to update key-value data.
+
+    Args:
+        input: Link to the output of an operation already in the work graph.
+
+    Keyword Arguments:
+        Any number of key-value pairs may be provided to override parameters
+        in :param:input. Values can be in the form of valid data for the named
+        key-value pair, or can be a reference to a compatible data source on the
+        work graph.
+
+    Returns:
+        WorkElement for a source of key-value data.
+    """
+    pass
 
 # if __name__ == "__main__":
 #     import doctest

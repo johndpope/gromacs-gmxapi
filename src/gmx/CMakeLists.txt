@@ -9,6 +9,7 @@ set(_pure_sources
         data.py
         exceptions.py
         fileio.py
+        operation.py
         status.py
         system.py
         util.py

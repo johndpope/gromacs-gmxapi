@@ -118,7 +118,7 @@ def test_idempotence2(caplog):
     with context as session:
         session.run()
 
-    context = gmx.context.Context()
+    context = gmx.context.Context01()
     context.work = md
     with context as session:
         session.run()

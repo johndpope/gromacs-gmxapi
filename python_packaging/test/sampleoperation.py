@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #
 # This file is part of the GROMACS molecular simulation package.
 #
@@ -32,7 +33,20 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# Refer to README.md in this directory for detailed information.
+"""gmxapi extension module with mock user code for gmxapi testing."""
 
-option(GMX_PYTHON_PACKAGES "Install Python package sources with GROMACS installation." ON)
-mark_as_advanced(GMX_PYTHON_PACKAGES)
+import gmx
+
+class NoOp(object):
+    """Implement a trivial Operation.
+
+    No input, output, or side-effects (no-op).
+    """
+
+class CountedOp(object):
+    """Trivial Operation that can report the number of times called."""
+    _count = 0
+    def __init__(self):
+        CountedOp._count += 1
+
+noop = gmx.make_operation(NoOp, input=[], output=[])

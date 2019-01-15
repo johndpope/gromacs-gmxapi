@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #
 # This file is part of the GROMACS molecular simulation package.
 #
@@ -32,7 +33,8 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# Refer to README.md in this directory for detailed information.
+"""Test API exception handling and inheritance.
 
-option(GMX_PYTHON_PACKAGES "Install Python package sources with GROMACS installation." ON)
-mark_as_advanced(GMX_PYTHON_PACKAGES)
+Check that exceptions are catchable and that C++ API exceptions are properly
+mapped to Python exceptions.
+"""

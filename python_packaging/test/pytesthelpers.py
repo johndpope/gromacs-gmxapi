@@ -32,7 +32,17 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# Refer to README.md in this directory for detailed information.
+"""Reusable definitions for test modules.
+"""
 
-option(GMX_PYTHON_PACKAGES "Install Python package sources with GROMACS installation." ON)
-mark_as_advanced(GMX_PYTHON_PACKAGES)
+import pytest
+
+withmpi_only = None
+
+try:
+    from mpi4py import MPI
+    withmpi_only = \
+        pytest.mark.skipif(not MPI.Is_initialized() or MPI.COMM_WORLD.Get_size() < 2,
+                           reason="Test requires at least 2 MPI ranks, but MPI is not initialized or too small.")
+except ImportError:
+    withmpi_only = pytest.mark.skip(reason="Test requires at least 2 MPI ranks, but mpi4py is not available.")

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #
 # This file is part of the GROMACS molecular simulation package.
 #
@@ -32,7 +33,16 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# Refer to README.md in this directory for detailed information.
+"""Test functionality for managing sub-graphs of work.
 
-option(GMX_PYTHON_PACKAGES "Install Python package sources with GROMACS installation." ON)
-mark_as_advanced(GMX_PYTHON_PACKAGES)
+Analogous to TensorFlow "layers", sub-graphs allow multiple operations to be
+bundled into a chunk of work that can be used to define a new operation or to
+express looping behavior.
+
+Test that expressed inputs and outputs have the expected accessibility and that
+tools for configuring subgraphs work intuitively in the procedural interface.
+
+Example:
+
+    train = gmx.subgraph(variables={'conformation': initial_input})
+"""

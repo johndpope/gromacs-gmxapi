@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #
 # This file is part of the GROMACS molecular simulation package.
 #
@@ -32,7 +33,18 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# Refer to README.md in this directory for detailed information.
+"""
+Test the big green "go" button.
 
-option(GMX_PYTHON_PACKAGES "Install Python package sources with GROMACS installation." ON)
-mark_as_advanced(GMX_PYTHON_PACKAGES)
+gmx.run() forces resolution of data dependencies for operations with outputs
+expressed in the current scripting environment.
+
+Check that expected output files are available after gmx.run().
+Check that run-time parameters for the execution context are properly handled.
+Check that execution is non-destructive of current files.
+Test for correct detection and execution in parallel environments with and without
+ensemble work.
+
+As available, confirm fault tolerance, check-point recovery, and optimizations
+for avoiding redundant work.
+"""

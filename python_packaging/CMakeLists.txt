@@ -31,3 +31,25 @@
 #
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
+
+if (NOT GMX_BUILD_MDRUN_ONLY)
+    # Install a copy of the gmx Python distribution package
+    # from https://github.com/kassonlab/gmxapi
+    # commit: 2c67978ede4557d15f6d83e8f842fa7dfee87a7f
+    # Prepared/updated with:
+    #     git rm -rf gmx
+    #     wget https://github.com/kassonlab/gmxapi/archive/devel.zip
+    #     unzip devel.zip
+    #     mv gmxapi-devel gmx
+    #     git add gmx
+
+    # After GROMACS installation, users may install with `pip install ${CMAKE_INSTALL_PREFIX}/gmx`
+    install(DIRECTORY gmx
+            DESTINATION ${CMAKE_INSTALL_PREFIX}/)
+endif()
+
+if (BUILD_TESTING)
+#    GROMACS needs to be installed in order to provide the gmxapi.cmake file
+#    needed to build the Python package. After installing GROMACS and sourcing
+#    GMXRC, `cd gmx; tox` to run the full suite of tests
+endif()

@@ -39,12 +39,28 @@ if (NOT GMX_BUILD_MDRUN_ONLY)
     # Prepared/updated with:
     #     git rm -rf gmx
     #     wget https://github.com/kassonlab/gmxapi/archive/devel.zip
-    #     unzip devel.zip
+    #     unzip devel.zip && rm devel.zip
     #     mv gmxapi-devel gmx
     #     git add gmx
 
-    # After GROMACS installation, users may install with `pip install ${CMAKE_INSTALL_PREFIX}/gmx`
+    # After GROMACS installation, users may source GMXRC and then
+    # install with `pip install ${CMAKE_INSTALL_PREFIX}/gmx`
     install(DIRECTORY gmx
+            DESTINATION ${CMAKE_INSTALL_PREFIX}/)
+
+    # Install a copy of the gmxapi sample restraint code
+    # from https://github.com/kassonlab/sample_restraint
+    # commit: c4dfe74b402cc8c48962cb67767b41096d15ca92
+    # Prepared/updated with:
+    #     git rm -rf sample_restraint
+    #     wget https://github.com/kassonlab/sample_restraint/archive/devel.zip
+    #     unzip devel.zip && rm devel.zip
+    #     mv sample_restraint-devel sample_restraint
+    #     git add sample_restraint
+
+    # After GROMACS installation, users may source GMXRC and then
+    # use CMake to install from the source directory ${CMAKE_INSTALL_PREFIX}/sample_restraint
+    install(DIRECTORY sample_restraint
             DESTINATION ${CMAKE_INSTALL_PREFIX}/)
 endif()
 

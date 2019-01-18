@@ -882,6 +882,7 @@ if (NOT GMX_BUILD_MDRUN_ONLY)
     add_subdirectory(scripts)
 endif()
 add_subdirectory(src)
+add_subdirectory(python_packaging)
 
 if (BUILD_TESTING)
     add_subdirectory(tests)

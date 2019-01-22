@@ -51,6 +51,17 @@ Execution environment
 1. gmx.run() launches work to produce requested data
 2. infrastructure manages / negotiates dispatching or allocation of available resources
 
+Packaging
+---------
+
+Installation procedures should be testable. CI scripts work for this.
+Ref: https://github.com/kassonlab/gmxapi/blob/master/ci_scripts/test_installers.sh
+
+1. Python package can be installed from GROMACS source directory after GROMACS installation.
+2. Python package can be installed by a user from a hand-built GROMACS installation.
+3. Python package can be installed from a Linux binary GROMACS distribution using
+  appropriate optimized binary libraries.
+
 Typing
 ------
 
@@ -118,3 +129,17 @@ Features development sequence based on functional priorities and dependencies.
 * gmx.context negotiates allocation of 1 node per operation with shared comm
 * gmx.context negotiates an integer number of nodes per operation
 * gmx.context negotiates allocation of resources for scheduled work
+
+Expectations on GROMACS master changes
+======================================
+
+* libgmxapi and libgromacs need to be combined
+* gmx Variant and types would be very helpful at API boundary
+* UI helpers should express
+  - preferred name for datum as a string
+  - setter
+  - typing and type discovery
+  - help text
+  - (for CLI: short name for flag)
+* library should be available for static linking with position independent code
+  to allow a single shared-object to be built for the Python module.

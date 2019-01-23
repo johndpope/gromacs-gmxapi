@@ -32,7 +32,23 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
+# Packaging milestones:
+# 1. Use the detected Python installation to install to the GROMACS installation
+#    with a target called install-py-gromacs.
+# 2. Use a target `test-py-gromacs` to run tests against that installation.
+# 3. Let a target called `py-gromacs` make an sdist that can be installed with
+#    pip from the build tree or installation directory.
+# Note: A partial alternative would be to add a script with which a developer
+# could update a valid sdist directly in the repository.
+
 # Refer to README.md in this directory for detailed information.
 
-option(GMX_PYTHON_PACKAGES "Install Python package sources with GROMACS installation." ON)
-mark_as_advanced(GMX_PYTHON_PACKAGES)
+#add_subdirectory(gromacs)
+
+# The gmxapi directory check provides a hook for conflict-free experimental development.
+#if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gmxapi)
+#    add_subdirectory(gmxapi)
+#endif()
+
+
+#endif()

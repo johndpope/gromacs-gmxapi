@@ -32,25 +32,30 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# Python setuptools script to build and install the gmxapi Python interface
-# from a GROMACS installation directory.
+# Python setuptools script to build and install the GROMACS Python bindings
+# package from a GROMACS installation directory.
 
-from setuptools import setup, find_packages
+try:
+    import skbuild
+except:
+    raise RuntimeError('You must have scikit-build installed to build this package.')
+
+from skbuild import setup
+
 setup(
-    name='gmxapi',
+    name='gromacs',
 
-    # TODO: replace with CMake variables from GMXAPI version.
-    version='0.1.0.dev',
+    # TODO: replace with variables for CMake substitution.
+    version='2020a1.dev0',
+
     python_requires='>=3.4, <4',
-    setup_requires=['setuptools>=28'],
+    setup_requires=['setuptools>=28', 'scikit-build>=0.7'],
 
-    packages=find_packages('src'),
-    package_dir={'': 'src'},
-    author='M. Eric Irrgang',
+    author='GROMACS gmxapi team',
     author_email='info@gmxapi.org',
-    description='gmxapi Python interface for GROMACS',
+    description='GROMACS Python bindings',
     license='LGPL',
-    url='http://gmxapi.org/',
+    url='http://www.gromacs.org/',
 
     # The installed package will contain compiled C++ extensions that cannot be loaded
     # directly from a zip file.

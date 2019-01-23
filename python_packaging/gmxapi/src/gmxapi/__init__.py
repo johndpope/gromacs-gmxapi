@@ -32,27 +32,9 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-# Python setuptools script to build and install the gmxapi Python interface
-# from a GROMACS installation directory.
+"""gmxapi Python package for GROMACS.
 
-from setuptools import setup, find_packages
-setup(
-    name='gmxapi',
 
-    # TODO: replace with CMake variables from GMXAPI version.
-    version='0.1.0.dev',
-    python_requires='>=3.4, <4',
-    setup_requires=['setuptools>=28'],
+"""
 
-    packages=find_packages('src'),
-    package_dir={'': 'src'},
-    author='M. Eric Irrgang',
-    author_email='info@gmxapi.org',
-    description='gmxapi Python interface for GROMACS',
-    license='LGPL',
-    url='http://gmxapi.org/',
-
-    # The installed package will contain compiled C++ extensions that cannot be loaded
-    # directly from a zip file.
-    zip_safe=False
-)
+__all__ = []

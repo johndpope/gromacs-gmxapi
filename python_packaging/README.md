@@ -11,7 +11,16 @@ by the system administrator who installed GROMACS.
 Python framework for gmxapi high-level interface. Contains functionality not ready or not destined for gromacs 
 bindings package.
 
-User:
+Current packaging:
+
+    # Install GROMACS to /path/to/gromacs
+    source /path/to/gromacs/bin/GMXRC
+    source $HOME/somevirtualenv/bin/activate
+    (cd gmxapi && pip install -r requirements.txt && pip install .)
+    python -c 'import gmxapi as gmx'
+    pytest test
+
+Intended packaging:
 
     source $HOME/somevirtualenv/bin/activate
     pip install -r /path/to/gromacs/python/requirements.txt

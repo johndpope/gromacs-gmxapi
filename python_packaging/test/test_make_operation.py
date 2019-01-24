@@ -46,17 +46,36 @@ import pytest
 
 from pytesthelpers import withmpi_only
 
+import sampleoperation
+
+# Find package or skip the tests while installable gmx package does not yet exist.
+# TODO: update as implemented.
+try:
+    # First look for experimental front-end package.
+    from gmxapi.operation import make_operation
+    gmx_package_name = 'gmxapi'
+except ImportError:
+    # Next try core bindings package.
+    try:
+        from gromacs.operation import make_operation
+        gmx_package_name = 'gromacs'
+    except ImportError:
+        # Fall back to older external package, if available.
+        gmx_package_name = 'gmx'
+
+# Effectively, `import gmx_package_name as gmx` or skip test
+gmx = pytest.importorskip(gmx_package_name)
+
+# Decorator to mark tests that are expected to fail
+xfail = pytest.mark.xfail
+
 # We do not import sampleoperation here because we want to test its importability separately
 #import sampleoperation
-
-# TODO: this line skips the tests while installable gmx package does not yet exist
-gmx = pytest.importorskip('gmx')
-xfail = pytest.mark.xfail
 
 @pytest.mark.usefixtures('cleandir')
 class TestOperationWrapper(unittest.TestCase):
     """Test that the gmx.make_operation helper generates valid Operations."""
-    @xfail
+    # @xfail
     def test_trivial_operation(self):
         """Check that the make_operation utility produces a callable correctly."""
         # Create Operation object

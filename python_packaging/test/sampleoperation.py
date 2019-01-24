@@ -35,7 +35,7 @@
 
 """gmxapi extension module with mock user code for gmxapi testing."""
 
-import gmx
+import gmxapi as gmx
 
 class NoOp(object):
     """Implement a trivial Operation.
@@ -49,4 +49,4 @@ class CountedOp(object):
     def __init__(self):
         CountedOp._count += 1
 
-noop = gmx.make_operation(NoOp, input=[], output=[])
+noop = gmx.operation.make_operation(NoOp, input=[], output=[])

@@ -37,4 +37,6 @@
 
 """
 
-__all__ = []
+__all__ = ['operation']
+
+from gmxapi import operation

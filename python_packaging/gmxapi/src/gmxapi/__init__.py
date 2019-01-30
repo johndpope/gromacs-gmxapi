@@ -37,6 +37,8 @@
 
 """
 
-__all__ = ['operation']
+__all__ = ['operation', 'context']
 
 from gmxapi import operation
+
+from gmxapi import context

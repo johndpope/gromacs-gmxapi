@@ -31,9 +31,14 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
+"""Support execution context abstraction for gmxapi."""
 
-class ApiError(Exception):
-    pass
+from enum import Enum
 
-class AttributeError(ApiError):
-    pass
+__all__ = ['immediate', 'graph']
+
+# TODO: this enum is an implementation detail and will be reconsidered as requirements become clearer.
+_ContextTypes = Enum('GmxapiContextTypes', 'ImmediateExecutionContext GraphAwareContext')
+
+immediate = _ContextTypes.ImmediateExecutionContext
+graph = _ContextTypes.GraphAwareContext

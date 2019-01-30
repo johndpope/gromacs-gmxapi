@@ -55,20 +55,30 @@
     assert op2.output.count.extract() == 2
 """
 
-from gmxapi.exceptions import ApiError
+import gmxapi.exceptions
 
 class Runner(object):
     """Descriptor class for runner behavior."""
-    def __init__(self, implementation):
+    def __init__(self, implementation, input):
+        # The name of the public attribute in the owning class.
         self.name = None
+        # The name of the private attribute in the owning class.
         self.internal_name = None
+        # The callable implementing the Runner behavior for the attribute in the owning class.
+        self.implementation = implementation
 
     def __get__(self, instance, instance_type):
-        if instance is None: return self
-        return getattr(instance, self.internal_name, lambda : True)
+        # Note: `self` is the object providing an attribute accessor for an
+        # `instance` of the class `instance_type`
+        # (`instance` is None if attribute is accessed through the owning class).
+        if instance is None: return self.implementation
+        return self.implementation
 
     def __set__(self, instance, value):
-        setattr(instance, self.internal_name, value)
+        # I think we don't want attributes of this type to be assignable.
+        # setattr(instance, self.internal_name, value)
+        message = '{}.{} is not assignable'.format(instance.__class__, self.name)
+        raise gmxapi.exceptions.AttributeError(message)
 
 class Result(object):
     """Descriptor class for Result behavior."""
@@ -103,12 +113,12 @@ class ValidateOperation(type):
         # Don't validate the abstract Operation class
         if bases != (object,):
             if class_dict['run'] is None:
-                raise ApiError()
+                raise gmxapi.exceptions.ApiError()
             else:
                 class_dict['run'].name = 'run'
                 class_dict['run'].internal_name = '_' + 'run'
             if class_dict['output'] is None:
-                raise ApiError()
+                raise gmxapi.exceptions.ApiError()
         return type.__new__(meta, name, bases, class_dict)
 
 class Operation(object, metaclass=ValidateOperation):
@@ -133,12 +143,15 @@ def make_operation(implementation, input=None, output=None):
     if operation_output is None:
         operation_output = object()
 
-    class NewOperation(Operation):
-        run = Runner(implementation)
+    class NewOperationFactory(Operation):
+        # When the operation is `run`, the output is brought up-to-date with
+        # available inputs and a reference is returned to a single output state
+        run = Runner(implementation, input)
+        # The output attribute gives (proxy) access to the output of the work graph node
         output = operation_output
 
-    def factory(*args, **kwargs):
-        operation = NewOperation()
-        return operation
+        def __init__(self, *args, **kwargs):
+            # TODO: positional keyword arguments must all be parsed and munged
+            pass
 
-    return factory
+    return NewOperationFactory

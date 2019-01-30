@@ -75,7 +75,7 @@ xfail = pytest.mark.xfail
 @pytest.mark.usefixtures('cleandir')
 class TestOperationWrapper(unittest.TestCase):
     """Test that the gmx.make_operation helper generates valid Operations."""
-    # @xfail
+    @xfail
     def test_trivial_operation(self):
         """Check that the make_operation utility produces a callable correctly."""
         # Create Operation object
@@ -87,20 +87,25 @@ class TestOperationWrapper(unittest.TestCase):
         # Check for expected behavior in various contexts
         assert my_op.output is not None
         result = my_op.run()
-        # sampleoperation.noop always has work to perform: result is always still runnable.
+
         assert result is not None
-        assert next(result, None) is not None
+
+        # sampleoperation.noop always has work to perform: result is always still runnable.
+        # Protocols regarding rerunability of operations or the Session execution are
+        # still a bit up in the air, so this is commented out for now.
+        # assert next(result, None) is not None
 
         # handle explicitly immediate (non-default) context
-        my_op = sampleoperation.noop(input=None, context=gmx.immediate)
+        my_op = sampleoperation.noop(input=None, context=gmx.context.immediate)
         my_op.run()
 
         # handle graph aware context
-        my_context = gmx.graph
+        my_context = gmx.context.graph
         my_op = sampleoperation.noop(input=None, context=my_context)
 
         # execute from graph context...
-        assert True
+        # TODO
+        assert False
 
 
     @withmpi_only
@@ -139,7 +144,7 @@ class TestOperationWrapper(unittest.TestCase):
         #
 
         # handle explicitly immediate (non-default) context
-        my_op = sampleoperation.noop(input=None, context=gmx.immediate)
+        my_op = sampleoperation.noop(input=None, context=gmx.context.immediate)
         my_op.run()
 
         # handle graph aware context

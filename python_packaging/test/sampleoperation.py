@@ -47,6 +47,20 @@ class CountedOp(object):
     """Trivial Operation that can report the number of times called."""
     _count = 0
     def __init__(self):
+        """Initialize and increment the module global counter, stored in the Class."""
         CountedOp._count += 1
 
+    def count(self):
+        return CountedOp._count
+
+class AppendToString(object):
+    """Operation that builds output by concatenating a string to the input."""
+    def __init__(self, data=None, new_text=None):
+        self.data = str(data) + str(new_text)
+
+    def data(self):
+        return self.data
+
 noop = gmx.operation.make_operation(NoOp, input=[], output=[])
+count = gmx.operation.make_operation(CountedOp, input=[], output=[])
+append = gmx.operation.make_operation(AppendToString, input=['data', 'new_text'], output=['data'])

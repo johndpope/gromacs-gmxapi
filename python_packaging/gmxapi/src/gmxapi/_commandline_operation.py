@@ -117,28 +117,98 @@ __all__ = []
 
 import importlib
 import os
-import warnings
+import subprocess
 import tempfile
+import warnings
 
 from gmxapi import exceptions
 from gmxapi import logging
-from gmxapi import get_context
-import gmxapi.version
+from gmxapi import util
+
+# import gmxapi.version
 
 
 # Module-level logger
 logger = logging.getLogger(__name__)
-logger.info('Importing gmx._commandline_operation')
+logger.info('Importing gmxapi._commandline_operation')
 
 class CommandLineOperation(object):
-    """Proxy returned by commandline helper function.
+    """Operation handle returned by commandline helper function.
 
-
+    Allows client to access the data proxies for the operation and to connect
+    inputs and outputs of a sequence of operations.
     """
+    def __init__(self, command):
+        self.command = command
+
+        self.__input = {}
+        self.__output = {}
+
+        self.logger = logger
+
+    @property
+    def input(self):
+        """Operation graph input(s) not implemented.
+
+        See issue #203
+        """
+        # value = object()
+        # value.stdin = self.__input['stdin']
+        # return value
+        raise exceptions.FeatureNotAvailableError("command_line operation input ports not implemented (yet).")
+
+    # Provide an `output` attribute that is an object with properties for
+    # each output port.
     @property
     def output(self):
-        return None
+        """Graph output(s) for the operation, if bound to subscribers.
 
+        The subprocess is executed with STDOUT and STDERR closed, by default.
+        But if a consuming operation is bound to one of the output ports,
+        output.stdout or output.stderr, then the output of the command is
+        captured and stored.
+
+        To do: we should take precautions to handle buffering and memory
+        tidiness. The session manager could make sure that the output buffers
+        for the subprocess are read frequently and published to subscribers,
+        but it might make sense to require that stdout and stderr are at
+        least intermediately sent directly to files until the operation is
+        completed and the output filehandles closed, such that a command
+        line operation produces a single clear data event when it completes.
+        """
+        # This will need to be a class instance with more sophisticated
+        # property attributes in the future...
+        output_ports = {}
+        if 'stdout' in self.__output:
+            output_ports['stdout'] = self.__output['stdout']
+        if 'stderr' in self.__output:
+            output_ports['stderr'] = self.__output['stderr']
+        if 'returncode' in self.__output:
+            output_ports['returncode'] = self.__output['returncode']
+        return output_ports
+
+    def __call__(self):
+            # File descriptors 0, 1, and 2 are inherited from parent and we don't
+            # want to close them for the parent, so we need to redirect or close
+            # them in the subprocess. Setting to the null device is probably
+            # sufficient, but it might not be easy to find on all systems.
+            # Python 3.3+ has better support.
+            # To do: Handle input and output flow.
+            null_filehandle = open(devnull, 'w')
+            try:
+                returncode = subprocess.check_call(self.command,
+                                                   shell=shell,
+                                                   stdin=null_filehandle,
+                                                   stdout=null_filehandle,
+                                                   stderr=null_filehandle)
+            except subprocess.CalledProcessError as e:
+                returncode = e.returncode
+                # What should we do with error (non-zero) exit codes?
+                self.logger.info("commandline operation had non-zero return status when calling {}".format(e.cmd))
+                self.__output['erroroutput'] = e.output
+            self.__output['returncode'] = returncode
+            # return self.output.returncode == 0
+            return self.output['returncode'] == 0
     @classmethod
     def from_node(cls, node):
         """Translate graph node."""
@@ -150,46 +220,6 @@ class Director(object):
         """Interact with the work graph."""
     def add_subscriber(self, subscriber):
         """Bind with other Directors to set up data flow."""
-
-def make_commandline_operation(*args, context=None, **kwargs):
-    """Generate a graph node in the current graph in the provided or current context."""
-    if context is None:
-        context = get_context()
-    if gmx.version.api_is_at_least(0, 1):
-        # Don't use WorkElement, use graph node view.
-        pass
-    else:
-        # Use WorkElement. New schema and semantics not yet implemented.
-        executable = ''
-        arguments = ''
-        element = gmx.workflow.WorkElement(namespace='gmxapi', operation='commandline',
-                                           params={'executable': executable,
-                                                   'arguments': arguments})
-        element.name = ''
-    operation = context.make_operation()
-    return operation
-
-def commandline(*args, context=None, **kwargs):
-    """Factory function to produce an Operation.
-
-    If not provided, context is retrieved with gmx.get_context().
-
-    If there are no other keyword arguments and *args contains a single object,
-    check if that object is a work graph node. If so, dispatch directly. Otherwise,
-    dispatch arguments to make_commandline_operation.
-
-    """
-    if context is None:
-        context = get_context()
-
-    operation = None
-    if len(kwargs) == 0 and len(args) == 1 and hasattr(args[0], '_gmxapi_graph_node'):
-        # read input from arg[0]
-        operation = CommandLineOperation.from_node(args[0])
-    else:
-        # build graph node from arguments
-        operation = make_commandline_operation(*args, context=context, **kwargs)
-    return operation
 
 def commandline_operation(executable=None, arguments=None, input=None, output=None, shell=False):
     """Execute a command line program in a subprocess.
@@ -246,24 +276,10 @@ def commandline_operation(executable=None, arguments=None, input=None, output=No
         we need to resolve issue #90 and others first.
 
     """
-    import subprocess
-    import os
-    from gmx import util
-    if hasattr(os, 'devnull'):
-        devnull = os.devnull
-    elif os.path.exists('/dev/null'):
-        devnull = '/dev/null'
-    else:
-        devnull = None
+    devnull = os.devnull
     if shell != False:
         raise exceptions.UsageError("Operation does not support shell processing.")
-    command = ""
-    try:
-        command = util.which(executable)
-    except:
-        # We could handle specific errors, but right now we only care
-        # whether we have something we can run.
-        pass
+    command = util.which(executable)
     command_args = []
     if command is None or command == "":
         raise exceptions.UsageError("Need an executable command.")

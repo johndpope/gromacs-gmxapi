@@ -133,19 +133,22 @@ class TestOperationWrapper(unittest.TestCase):
         import sampleoperation
         initial_count = 5
         my_op = sampleoperation.count(count=initial_count)
-        assert my_op.count == 5
+        assert my_op.input.count == 5
 
         # Counter has no completion criteria, and could be run again.
-        result = my_op.run()
-        assert result is not None
-
-        assert result.count == initial_count + 1
+        # Runner behavior TBD
+        # result = my_op.run()
+        # assert result is not None
+        #
+        # assert result.count == initial_count + 1
 
         #
 
         # handle explicitly immediate (non-default) context
-        my_op = sampleoperation.noop(input=None, context=gmx.context.immediate)
-        my_op.run()
+        my_op = sampleoperation.count(count=initial_count, context=gmx.context.immediate)
+        # Runner behavior is unclear
+        #my_op.run()
+        assert my_op.output.count.extract() == 6
 
         # handle graph aware context
         my_context = gmx.graph

@@ -33,16 +33,19 @@
 # To help us fund GROMACS development, we humbly ask that you cite
 # the research papers on the package. Check out http://www.gromacs.org.
 
-"""Test the gmx.commandline_operation wrapper tool.
+"""Test the gmxapi.commandline_operation wrapper tool.
 
-gmx.commandline_operation() provides additional logic over gmx.make_operation
+gmxapi.commandline_operation() provides additional logic over gmxapi.make_operation
 to conveniently wrap command line tools.
 """
+
+import unittest
+from gmxapi._commandline_operation import commandline_operation
 
 class CommandLineOperationTestCase(unittest.TestCase):
     """Test creation and execution of command line wrapper."""
     def test_true(self):
-        operation = gmx.commandline_operation(executable='true')
+        operation = commandline_operation(executable='true')
         assert not 'stdout' in operation.output
         assert not 'stderr' in operation.output
         assert not 'returncode' in operation.output
@@ -59,7 +62,7 @@ class CommandLineOperationTestCase(unittest.TestCase):
         assert operation.output['returncode'] == 0
 
     def test_false(self):
-        operation = gmx.commandline_operation(executable='false')
+        operation = commandline_operation(executable='false')
         assert not 'stdout' in operation.output
         assert not 'stderr' in operation.output
         assert not 'returncode' in operation.output
@@ -76,7 +79,7 @@ class CommandLineOperationTestCase(unittest.TestCase):
         assert operation.output['returncode'] == 1
 
     def test_echo(self):
-        operation = gmx.commandline_operation(executable='echo', arguments=['hi there'])
+        operation = commandline_operation(executable='echo', arguments=['hi there'])
         success = operation()
         assert success
         assert not 'stdout' in operation.output

@@ -25,10 +25,10 @@ For basic tests, install the Python package(s) (presumably into a virtualenv),
 then use the `pytest` executable to run these tests against the installed
 package(s).
 
-`pytest $LOCAL_REPO_DIR/python/test`
+`pytest $LOCAL_REPO_DIR/python_packaging/test`
 
 where `$LOCAL_REPO_DIR` is the path to the local copy of the GROMACS source repository.
 
 For multi-process tests, run with an MPI execution wrapper and the `mpi4py` module.
 
-`mpiexec -n 2 python -m mpi4py -m pytest $LOCAL_REPO_DIR/python/test`
+`mpiexec -n 2 python -m mpi4py -m pytest $LOCAL_REPO_DIR/python_packaging/test`

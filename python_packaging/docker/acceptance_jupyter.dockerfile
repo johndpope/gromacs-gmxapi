@@ -29,6 +29,7 @@ RUN \
         software-properties-common \
         unzip && \
     rm -rf /var/lib/apt/lists/*
+# By putting the above commands together, we avoid creating a large intermediate layer with all of /var/lib/apt/lists
 
 USER jovyan
 
@@ -80,6 +81,7 @@ RUN \
         man \
         mscgen \
         openmpi-bin \
+        ssh \
         software-properties-common \
         unzip \
         vim \

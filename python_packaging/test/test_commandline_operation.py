@@ -40,51 +40,29 @@ to conveniently wrap command line tools.
 """
 
 import unittest
-from gmxapi._commandline_operation import commandline_operation
+from gmxapi.commandline import cli_function as commandline_operation
 
 class CommandLineOperationTestCase(unittest.TestCase):
     """Test creation and execution of command line wrapper."""
     def test_true(self):
         operation = commandline_operation(executable='true')
-        assert not 'stdout' in operation.output
-        assert not 'stderr' in operation.output
-        assert not 'returncode' in operation.output
-        # assert not hasattr(operation.output, 'stdout')
-        # assert not hasattr(operation.output, 'stderr')
-        # assert not hasattr(operation.output, 'returncode')
-        success = operation()
-        assert success
-        assert not 'stdout' in operation.output
-        assert not 'stderr' in operation.output
-        # assert not hasattr(operation.output, 'stdout')
-        # assert not hasattr(operation.output, 'stderr')
-        # assert operation.output.returncode == 0
-        assert operation.output['returncode'] == 0
+        # Note: 'stdout' and 'stderr' not mapped.
+        # Note: getitem not implemented.
+        # assert not 'stdout' in operation.output
+        # assert not 'stderr' in operation.output
+        assert not hasattr(operation.output, 'stdout')
+        assert not hasattr(operation.output, 'stderr')
+        operation.run()
+        # assert operation.output.returncode.result() == 0
+        assert operation.output.returncode == 0
 
     def test_false(self):
         operation = commandline_operation(executable='false')
-        assert not 'stdout' in operation.output
-        assert not 'stderr' in operation.output
-        assert not 'returncode' in operation.output
-        # assert not hasattr(operation.output, 'stdout')
-        # assert not hasattr(operation.output, 'stderr')
-        # assert not hasattr(operation.output, 'returncode')
-        success = operation()
-        assert not success
-        assert not 'stdout' in operation.output
-        assert not 'stderr' in operation.output
-        # assert not hasattr(operation.output, 'stdout')
-        # assert not hasattr(operation.output, 'stderr')
-        # assert operation.output.returncode == 0
-        assert operation.output['returncode'] == 1
+        operation.run()
+        assert operation.output.returncode == 1
 
     def test_echo(self):
+        # TODO: do we want to pipeline or checkpoint stdout somehow?
         operation = commandline_operation(executable='echo', arguments=['hi there'])
-        success = operation()
-        assert success
-        assert not 'stdout' in operation.output
-        assert not 'stderr' in operation.output
-        # assert not hasattr(operation.output, 'stdout')
-        # assert not hasattr(operation.output, 'stderr')
-        # assert operation.output.returncode == 0
-        assert operation.output['returncode'] == 0
+        operation.run()
+        assert operation.output.returncode == 0

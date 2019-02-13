@@ -1,30 +1,17 @@
 # Provide an easy-to-reproduce environment in which to test full Python functionality.
-# Produce an image with GROMACS installed.
-# This version of the Dockerfile installs mpich.
+# Produce an image with GROMACS installed. Use the root of the repository as the build context
 
 # Optionally, set `--build-arg DOCKER_CORES=N` for a Docker engine running with access to more than 1 CPU.
 #    REF=`git show -s --pretty=format:"%h"`
-#    docker build -t gmxapi/gromacs:${REF} --build-arg REF=${REF} --build-arg DOCKER_CORES=4 -f gromacs.dockerfile ..
+#    docker build -t gmxapi/gromacs:${REF} --build-arg DOCKER_CORES=4 -f gromacs.dockerfile ../..
 
 # This image serves as a base for integration with the gmxapi Python tools and sample code.
 
 ARG MPIFLAVOR=mpich
 FROM gmxapi/gromacs-dependencies:$MPIFLAVOR
 
-#ARG REPO=https://github.com/gromacs/gromacs.git
-ARG REPO=https://github.com/eirrgang/gromacs-gmxapi.git
-
-RUN cd /tmp && git clone $REPO gromacs-source
 ENV SRC_DIR /tmp/gromacs-source
-
-# Allow build for an arbitrary branch, tag, or commit, but default to the tip of `master`
-ARG REF=master
-# NOTE! If a branch is used for REF, the command looks the same and Docker will not expire the
-# build cache after success of the following command. Consider giving a specific commit for REF
-# or specify `--no-cache` if a rebuild requires updates from the git repository.
-RUN cd $SRC_DIR && \
-    git pull && \
-    git checkout $REF
+COPY . $SRC_DIR
 
 ENV BUILD_DIR /tmp/gromacs-build
 RUN mkdir -p $BUILD_DIR
@@ -44,4 +31,3 @@ RUN cd $BUILD_DIR && \
         -DGMX_HWLOC=OFF \
         -DCMAKE_BUILD_TYPE=$TYPE && \
     make -j$DOCKER_CORES install
-

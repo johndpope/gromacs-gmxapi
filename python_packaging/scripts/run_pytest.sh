@@ -1,3 +1,3 @@
 #!/bin/bash
 
-pytest $HOME/gmxapi/test
+pytest $HOME/gmx/src/gmx/test

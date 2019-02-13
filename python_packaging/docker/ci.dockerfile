@@ -52,11 +52,11 @@ RUN . $HOME/testing/bin/activate && \
 RUN . $HOME/testing/bin/activate && \
     pip install -r /home/testing/requirements.txt
 
-ADD --chown=testing:testing gmxapi /home/testing/gmxapi
+ADD --chown=testing:testing gmx /home/testing/gmx
 
 RUN . $HOME/testing/bin/activate && \
     . /usr/local/gromacs/bin/GMXRC && \
-    (cd $HOME/gmxapi && \
+    (cd $HOME/gmx && \
      pip install . \
     )
 

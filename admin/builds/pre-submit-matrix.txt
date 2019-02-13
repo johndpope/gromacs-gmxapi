@@ -15,14 +15,13 @@
 # newer infrastructure in CI, unless it's either easy or of
 # high impact.)
 
-# Test older gcc
+# Test oldest supported gcc
 # Test oldest supported CUDA
-# Test oldest supported cmake
 # Test oldest supported Ubuntu
 # Test MPI with CUDA
 # Test MPI with gcc
 # Test MPMD PME with library MPI
-gcc-4.8 gpuhw=nvidia cuda-7.0 cmake-3.9.6 mpi npme=1 nranks=2 openmp
+gcc-5 gpuhw=nvidia cuda-9.0 cmake-3.9.6 mpi npme=1 nranks=2 openmp
 
 # Test non-default use of mdrun -gpu_id
 # Test newest gcc supported by newest CUDA at time of release
@@ -42,13 +41,11 @@ clang-7 no-hwloc tsan libcxx-7 openmp cmake-3.12.1 simd=avx2_256
 # Test fftpack fallback
 gcc-8 double x11 no-tng fftpack simd=sse4.1
 
-# Test older clang
-# Test clang in double precision
+# Test oldest supported clang (while avoiding AVX codegen issues in it)
 # Test without OpenMP
 # Test thread-MPI
-# Test AVX_128_FMA SIMD + Double (Important for Simd4N=Simd4 and sizeof(SimdInt32)!=4*GMX_SIMD_REAL_WIDTH)
 # Test with TNG support
-clang-3.4 double simd=avx_128_fma thread-mpi no-openmp fftpack cmake-3.11.4 tng
+clang-3.6 simd=sse2 thread-mpi no-openmp fftpack cmake-3.11.4 tng
 
 # Test newest clang at time of release
 # Test with AddressSanitizer (without OpenMP, see below)
@@ -69,11 +66,12 @@ msvc-2017 openmp release-with-assert
 # Test hwloc support
 icc-19 no-thread-mpi double openmp mkl cmake-3.9.6 simd=none release hwloc
 
+# Test oldest supported cmake
 # Test NVIDIA OpenCL
 # Test external clFFT (for build speed)
 # Test MPI + OpenCL
 # Test AVX2_256 SIMD
-gcc-6 openmp gpuhw=nvidia opencl-1.2 clFFT-2.14 mpi simd=avx2_256
+gcc-6 openmp gpuhw=nvidia opencl-1.2 clFFT-2.14 cmake-3.9.6 mpi simd=avx2_256
 
 # Test AMD OpenCL
 # Test external clFFT (for build speed)

@@ -51,9 +51,9 @@
 #include <cstring>
 
 #include <algorithm>
+#include <memory>
 #include <string>
 
-#include "gromacs/compat/make_unique.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_network.h"
 #include "gromacs/domdec/ga2la.h"
@@ -615,7 +615,7 @@ static int make_reverse_ilist(const InteractionLists &ilist,
     low_make_reverse_ilist(ilist, atoms->atom, vsitePbc,
                            count,
                            bConstr, bSettle, bBCheck,
-                           gmx::EmptyArrayRef(), gmx::EmptyArrayRef(),
+                           {}, {},
                            bLinkToAllAtoms, FALSE);
 
     ril_mt->index.push_back(0);
@@ -705,7 +705,7 @@ static gmx_reverse_top_t make_reverse_top(const gmx_mtop_t *mtop, gmx_bool bFE,
         *nint +=
             make_reverse_ilist(*mtop->intermolecular_ilist,
                                &atoms_global,
-                               gmx::EmptyArrayRef(),
+                               {},
                                rt.bConstr, rt.bSettle, rt.bBCheck, FALSE,
                                &rt.ril_intermol);
     }
@@ -739,7 +739,7 @@ static gmx_reverse_top_t make_reverse_top(const gmx_mtop_t *mtop, gmx_bool bFE,
     {
         for (thread_work_t &th_work : rt.th_work)
         {
-            th_work.vsitePbc = gmx::compat::make_unique<VsitePbc>();
+            th_work.vsitePbc = std::make_unique<VsitePbc>();
         }
     }
 
@@ -936,7 +936,7 @@ static void add_posres(int mol, int a_mol, int numAtomsInMolecule,
 
     /* Get the position restraint coordinates from the molblock */
     a_molb = mol*numAtomsInMolecule + a_mol;
-    GMX_ASSERT(a_molb < static_cast<int>(molb->posres_xA.size()), "We need a sufficient number of position restraint coordinates");
+    GMX_ASSERT(a_molb < ssize(molb->posres_xA), "We need a sufficient number of position restraint coordinates");
     ip->posres.pos0A[XX] = molb->posres_xA[a_molb][XX];
     ip->posres.pos0A[YY] = molb->posres_xA[a_molb][YY];
     ip->posres.pos0A[ZZ] = molb->posres_xA[a_molb][ZZ];
@@ -980,7 +980,7 @@ static void add_fbposres(int mol, int a_mol, int numAtomsInMolecule,
 
     /* Get the position restraint coordinats from the molblock */
     a_molb = mol*numAtomsInMolecule + a_mol;
-    GMX_ASSERT(a_molb < static_cast<int>(molb->posres_xA.size()), "We need a sufficient number of position restraint coordinates");
+    GMX_ASSERT(a_molb < ssize(molb->posres_xA), "We need a sufficient number of position restraint coordinates");
     /* Take reference positions from A position of normal posres */
     ip->fbposres.pos0[XX] = molb->posres_xA[a_molb][XX];
     ip->fbposres.pos0[YY] = molb->posres_xA[a_molb][YY];
@@ -1141,7 +1141,7 @@ static void combine_blocka(t_blocka                           *dest,
         dest->nalloc_a = over_alloc_large(dest->nra+na);
         srenew(dest->a, dest->nalloc_a);
     }
-    for (gmx::index s = 1; s < src.size(); s++)
+    for (gmx::index s = 1; s < src.ssize(); s++)
     {
         for (int i = dest->nr + 1; i < src[s].excl.nr + 1; i++)
         {
@@ -1168,7 +1168,7 @@ static void combine_idef(t_idef                             *dest,
     for (ftype = 0; ftype < F_NRE; ftype++)
     {
         int n = 0;
-        for (gmx::index s = 1; s < src.size(); s++)
+        for (gmx::index s = 1; s < src.ssize(); s++)
         {
             n += src[s].idef.il[ftype].nr;
         }
@@ -1190,7 +1190,7 @@ static void combine_idef(t_idef                             *dest,
             const int  nral1 = 1 + NRAL(ftype);
             const int  ftv   = ftype - c_ftypeVsiteStart;
 
-            for (gmx::index s = 1; s < src.size(); s++)
+            for (gmx::index s = 1; s < src.ssize(); s++)
             {
                 const t_ilist &ils = src[s].idef.il[ftype];
 
@@ -1226,12 +1226,12 @@ static void combine_idef(t_idef                             *dest,
                 }
 
                 /* Set nposres to the number of original position restraints in dest */
-                for (gmx::index s = 1; s < src.size(); s++)
+                for (gmx::index s = 1; s < src.ssize(); s++)
                 {
                     nposres -= src[s].idef.il[ftype].nr/2;
                 }
 
-                for (gmx::index s = 1; s < src.size(); s++)
+                for (gmx::index s = 1; s < src.ssize(); s++)
                 {
                     const t_iparams *iparams_src = (ftype == F_POSRES ? src[s].idef.iparams_posres : src[s].idef.iparams_fbposres);
 
@@ -1788,7 +1788,7 @@ static void make_exclusions_zone(gmx_domdec_t *dd, gmx_domdec_zones_t *zones,
 
         if (isExcludedAtom)
         {
-            if (n + intermolecularExclusionGroup.size() > lexcls->nalloc_a)
+            if (n + intermolecularExclusionGroup.ssize() > lexcls->nalloc_a)
             {
                 lexcls->nalloc_a =
                     over_alloc_large(n + intermolecularExclusionGroup.size());
@@ -2285,7 +2285,7 @@ t_blocka *make_charge_group_links(const gmx_mtop_t *mtop, gmx_domdec_t *dd,
 
         make_reverse_ilist(*mtop->intermolecular_ilist,
                            &atoms,
-                           gmx::EmptyArrayRef(),
+                           {},
                            FALSE, FALSE, FALSE, TRUE, &ril_intermol);
     }
 
@@ -2313,7 +2313,7 @@ t_blocka *make_charge_group_links(const gmx_mtop_t *mtop, gmx_domdec_t *dd,
          * The constraints are discarded here.
          */
         reverse_ilist_t ril;
-        make_reverse_ilist(molt.ilist, &molt.atoms, gmx::EmptyArrayRef(),
+        make_reverse_ilist(molt.ilist, &molt.atoms, {},
                            FALSE, FALSE, FALSE, TRUE, &ril);
 
         cgi_mb = &cginfo_mb[mb];

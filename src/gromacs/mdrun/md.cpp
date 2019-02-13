@@ -53,7 +53,6 @@
 
 #include "gromacs/awh/awh.h"
 #include "gromacs/commandline/filenm.h"
-#include "gromacs/compat/make_unique.h"
 #include "gromacs/domdec/collect.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_network.h"
@@ -61,13 +60,13 @@
 #include "gromacs/domdec/partition.h"
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
-#include "gromacs/ewald/pme-load-balancing.h"
+#include "gromacs/ewald/pme_load_balancing.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/listed-forces/manage-threading.h"
+#include "gromacs/listed_forces/manage_threading.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -101,8 +100,8 @@
 #include "gromacs/mdlib/update.h"
 #include "gromacs/mdlib/vcm.h"
 #include "gromacs/mdlib/vsite.h"
-#include "gromacs/mdtypes/awh-history.h"
-#include "gromacs/mdtypes/awh-params.h"
+#include "gromacs/mdtypes/awh_history.h"
+#include "gromacs/mdtypes/awh_params.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/df_history.h"
 #include "gromacs/mdtypes/energyhistory.h"
@@ -153,27 +152,25 @@ void gmx::Integrator::do_md()
     // t_inputrec is being replaced by IMdpOptionsProvider, so this
     // will go away eventually.
     t_inputrec             *ir   = inputrec;
-    gmx_mdoutf             *outf = nullptr;
     int64_t                 step, step_rel;
-    double                  t, t0, lam0[efptNR];
+    double                  t = ir->init_t, t0 = ir->init_t, lam0[efptNR];
     gmx_bool                bGStatEveryStep, bGStat, bCalcVir, bCalcEnerStep, bCalcEner;
-    gmx_bool                bNS, bNStList, bSimAnn, bStopCM,
+    gmx_bool                bNS, bNStList, bStopCM,
                             bFirstStep, bInitStep, bLastStep = FALSE;
     gmx_bool                bDoDHDL = FALSE, bDoFEP = FALSE, bDoExpanded = FALSE;
     gmx_bool                do_ene, do_log, do_verbose;
     gmx_bool                bMasterState;
     int                     force_flags, cglo_flags;
-    tensor                  force_vir, shake_vir, total_vir, tmp_vir, pres;
+    tensor                  force_vir = {{0}}, shake_vir = {{0}}, total_vir = {{0}},
+                            tmp_vir   = {{0}}, pres = {{0}};
     int                     i, m;
     rvec                    mu_tot;
     matrix                  parrinellorahmanMu, M;
     gmx_repl_ex_t           repl_ex = nullptr;
     gmx_localtop_t          top;
-    t_mdebin               *mdebin   = nullptr;
     gmx_enerdata_t         *enerd;
     PaddedVector<gmx::RVec> f {};
     gmx_global_stat_t       gstat;
-    gmx_update_t           *upd   = nullptr;
     t_graph                *graph = nullptr;
     gmx_groups_t           *groups;
     gmx_shellfc_t          *shellfc;
@@ -248,12 +245,18 @@ void gmx::Integrator::do_md()
                         oenv, mdrunOptions.continuationOptions.appendFiles);
     }
 
-    /* Initial values */
-    init_md(fplog, cr, outputProvider, ir, oenv, mdrunOptions,
-            &t, &t0, state_global, lam0,
-            nrnb, top_global, &upd, deform,
-            nfile, fnm, &outf, &mdebin,
-            force_vir, shake_vir, total_vir, pres, mu_tot, &bSimAnn, wcycle);
+    initialize_lambdas(fplog, *ir, MASTER(cr), &state_global->fep_state, state_global->lambda, lam0);
+    Update upd(ir, deform);
+    bool   doSimulatedAnnealing = initSimulatedAnnealing(ir, &upd);
+    if (!mdrunOptions.continuationOptions.appendFiles)
+    {
+        pleaseCiteCouplingAlgorithms(fplog, *ir);
+    }
+    init_nrnb(nrnb);
+    gmx_mdoutf *outf = init_mdoutf(fplog, nfile, fnm, mdrunOptions, cr,
+                                   outputProvider, ir, top_global, oenv, wcycle);
+    t_mdebin   *mdebin = init_mdebin(mdrunOptions.continuationOptions.appendFiles ? nullptr : mdoutf_get_fp_ene(outf),
+                                     top_global, ir, mdoutf_get_fp_dhdl(outf));
 
     /* Energy terms and groups */
     snew(enerd, 1);
@@ -261,7 +264,7 @@ void gmx::Integrator::do_md()
                   enerd);
 
     /* Kinetic energy data */
-    std::unique_ptr<gmx_ekindata_t> eKinData = compat::make_unique<gmx_ekindata_t>();
+    std::unique_ptr<gmx_ekindata_t> eKinData = std::make_unique<gmx_ekindata_t>();
     gmx_ekindata_t                 *ekind    = eKinData.get();
     init_ekindata(fplog, top_global, &(ir->opts), ekind);
     /* Copy the cos acceleration to the groups struct */
@@ -297,7 +300,7 @@ void gmx::Integrator::do_md()
     {
         dd_init_local_top(*top_global, &top);
 
-        stateInstance = compat::make_unique<t_state>();
+        stateInstance = std::make_unique<t_state>();
         state         = stateInstance.get();
         dd_init_local_state(cr->dd, state_global, state);
 
@@ -308,7 +311,7 @@ void gmx::Integrator::do_md()
                             vsite, constr,
                             nrnb, nullptr, FALSE);
         shouldCheckNumberOfBondedInteractions = true;
-        update_realloc(upd, state->natoms);
+        upd.setNumAtoms(state->natoms);
     }
     else
     {
@@ -321,7 +324,7 @@ void gmx::Integrator::do_md()
         mdAlgorithmsSetupAtomData(cr, ir, *top_global, &top, fr,
                                   &graph, mdAtoms, constr, vsite, shellfc);
 
-        update_realloc(upd, state->natoms);
+        upd.setNumAtoms(state->natoms);
     }
 
     auto mdatoms = mdAtoms->mdatoms();
@@ -378,11 +381,11 @@ void gmx::Integrator::do_md()
         }
         if (!observablesHistory->energyHistory)
         {
-            observablesHistory->energyHistory = compat::make_unique<energyhistory_t>();
+            observablesHistory->energyHistory = std::make_unique<energyhistory_t>();
         }
         if (!observablesHistory->pullHistory)
         {
-            observablesHistory->pullHistory = compat::make_unique<PullHistory>();
+            observablesHistory->pullHistory = std::make_unique<PullHistory>();
         }
         /* Set the initial energy history in state by updating once */
         update_energyhistory(observablesHistory->energyHistory.get(), mdebin);
@@ -647,13 +650,13 @@ void gmx::Integrator::do_md()
                 MASTER(cr), ir->nstlist, mdrunOptions.reproducible, nstSignalComm,
                 mdrunOptions.maximumHoursToRun, ir->nstlist == 0, fplog, step, bNS, walltime_accounting);
 
-    auto checkpointHandler = compat::make_unique<CheckpointHandler>(
+    auto checkpointHandler = std::make_unique<CheckpointHandler>(
                 compat::make_not_null<SimulationSignal*>(&signals[eglsCHKPT]),
                 simulationsShareState, ir->nstlist == 0, MASTER(cr),
                 mdrunOptions.writeConfout, mdrunOptions.checkpointOptions.period);
 
     const bool resetCountersIsLocal = true;
-    auto       resetHandler         = compat::make_unique<ResetHandler>(
+    auto       resetHandler         = std::make_unique<ResetHandler>(
                 compat::make_not_null<SimulationSignal*>(&signals[eglsRESETCOUNTERS]), !resetCountersIsLocal,
                 ir->nsteps, MASTER(cr), mdrunOptions.timingOptions.resetHalfway,
                 mdrunOptions.maximumHoursToRun, mdlog, wcycle, walltime_accounting);
@@ -721,9 +724,9 @@ void gmx::Integrator::do_md()
         bDoReplEx = (useReplicaExchange && (step > 0) && !bLastStep &&
                      do_per_step(step, replExParams.exchangeInterval));
 
-        if (bSimAnn)
+        if (doSimulatedAnnealing)
         {
-            update_annealing_target_temp(ir, t, upd);
+            update_annealing_target_temp(ir, t, &upd);
         }
 
         /* Stop Center of Mass motion */
@@ -771,7 +774,7 @@ void gmx::Integrator::do_md()
                                     nrnb, wcycle,
                                     do_verbose && !bPMETunePrinting);
                 shouldCheckNumberOfBondedInteractions = true;
-                update_realloc(upd, state->natoms);
+                upd.setNumAtoms(state->natoms);
             }
         }
 
@@ -909,7 +912,7 @@ void gmx::Integrator::do_md()
             }
 
             update_coords(step, ir, mdatoms, state, f.arrayRefWithPadding(), fcd,
-                          ekind, M, upd, etrtVELOCITY1,
+                          ekind, M, &upd, etrtVELOCITY1,
                           cr, constr);
 
             wallcycle_stop(wcycle, ewcUPDATE);
@@ -1089,7 +1092,7 @@ void gmx::Integrator::do_md()
         if (ETC_ANDERSEN(ir->etc)) /* keep this outside of update_tcouple because of the extra info required to pass */
         {
             gmx_bool bIfRandomize;
-            bIfRandomize = update_randomize_velocities(ir, step, cr, mdatoms, state->v, upd, constr);
+            bIfRandomize = update_randomize_velocities(ir, step, cr, mdatoms, state->v, &upd, constr);
             /* if we have constraints, we have to remove the kinetic energy parallel to the bonds */
             if (constr && bIfRandomize)
             {
@@ -1132,7 +1135,7 @@ void gmx::Integrator::do_md()
         {
             /* velocity half-step update */
             update_coords(step, ir, mdatoms, state, f.arrayRefWithPadding(), fcd,
-                          ekind, M, upd, etrtVELOCITY2,
+                          ekind, M, &upd, etrtVELOCITY2,
                           cr, constr);
         }
 
@@ -1153,18 +1156,18 @@ void gmx::Integrator::do_md()
         }
 
         update_coords(step, ir, mdatoms, state, f.arrayRefWithPadding(), fcd,
-                      ekind, M, upd, etrtPOSITION, cr, constr);
+                      ekind, M, &upd, etrtPOSITION, cr, constr);
         wallcycle_stop(wcycle, ewcUPDATE);
 
         constrain_coordinates(step, &dvdl_constr, state,
                               shake_vir,
-                              upd, constr,
+                              &upd, constr,
                               bCalcVir, do_log, do_ene);
         update_sd_second_half(step, &dvdl_constr, ir, mdatoms, state,
-                              cr, nrnb, wcycle, upd, constr, do_log, do_ene);
+                              cr, nrnb, wcycle, &upd, constr, do_log, do_ene);
         finish_update(ir, mdatoms,
                       state, graph,
-                      nrnb, wcycle, upd, constr);
+                      nrnb, wcycle, &upd, constr);
 
         if (ir->bPull && ir->pull->bSetPbcRefToPrevStepCOM)
         {
@@ -1187,7 +1190,7 @@ void gmx::Integrator::do_md()
             copy_rvecn(cbuf, as_rvec_array(state->x.data()), 0, state->natoms);
 
             update_coords(step, ir, mdatoms, state, f.arrayRefWithPadding(), fcd,
-                          ekind, M, upd, etrtPOSITION, cr, constr);
+                          ekind, M, &upd, etrtPOSITION, cr, constr);
             wallcycle_stop(wcycle, ewcUPDATE);
 
             /* do we need an extra constraint here? just need to copy out of as_rvec_array(state->v.data()) to upd->xp? */
@@ -1197,7 +1200,7 @@ void gmx::Integrator::do_md()
              * For now, will call without actually constraining, constr=NULL*/
             finish_update(ir, mdatoms,
                           state, graph,
-                          nrnb, wcycle, upd, nullptr);
+                          nrnb, wcycle, &upd, nullptr);
         }
         if (EI_VV(ir->eI))
         {
@@ -1298,7 +1301,7 @@ void gmx::Integrator::do_md()
         update_pcouple_after_coordinates(fplog, step, ir, mdatoms,
                                          pres, force_vir, shake_vir,
                                          parrinellorahmanMu,
-                                         state, nrnb, upd);
+                                         state, nrnb, &upd);
 
         /* ################# END UPDATE STEP 2 ################# */
         /* #### We now have r(t+dt) and v(t+dt/2)  ############# */
@@ -1433,7 +1436,7 @@ void gmx::Integrator::do_md()
                                 vsite, constr,
                                 nrnb, wcycle, FALSE);
             shouldCheckNumberOfBondedInteractions = true;
-            update_realloc(upd, state->natoms);
+            upd.setNumAtoms(state->natoms);
         }
 
         bFirstStep             = FALSE;

@@ -45,8 +45,7 @@
 #include <vector>
 
 #include "gromacs/gmxpreprocess/fflibutil.h"
-#include "gromacs/gmxpreprocess/grompp-impl.h"
-#include "gromacs/gmxpreprocess/hackblock.h"
+#include "gromacs/gmxpreprocess/grompp_impl.h"
 #include "gromacs/topology/residuetypes.h"
 #include "gromacs/topology/symtab.h"
 #include "gromacs/utility/cstringutil.h"
@@ -54,6 +53,8 @@
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/strdb.h"
+
+#include "hackblock.h"
 
 typedef struct {
     char *filebase;
@@ -138,7 +139,7 @@ static void done_xlatom(int nxlate, t_xlate_atom *xlatom)
 }
 
 void rename_atoms(const char* xlfile, const char *ffdir,
-                  t_atoms *atoms, t_symtab *symtab, const t_restp *restp,
+                  t_atoms *atoms, t_symtab *symtab, gmx::ArrayRef<const PreprocessResidue> localPpResidue,
                   bool bResname, ResidueType *rt, bool bReorderNum,
                   bool bVerbose)
 {
@@ -201,8 +202,8 @@ void rename_atoms(const char* xlfile, const char *ffdir,
         for (i = 0; (i < nxlate) && !bRenamed; i++)
         {
             /* Check if the base file name of the rtp and arn entry match */
-            if (restp == nullptr ||
-                gmx_strcasecmp(restp[resind].filebase, xlatom[i].filebase) == 0)
+            if (localPpResidue.empty() ||
+                gmx::equalCaseInsensitive(localPpResidue[resind].filebase, xlatom[i].filebase))
             {
                 /* Match the residue name */
                 bMatch = (xlatom[i].res == nullptr ||

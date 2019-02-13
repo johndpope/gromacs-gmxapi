@@ -48,11 +48,9 @@
 
 #include "gromacs/fileio/confio.h"
 #include "gromacs/gmxpreprocess/gpp_nextnb.h"
-#include "gromacs/gmxpreprocess/grompp-impl.h"
-#include "gromacs/gmxpreprocess/hackblock.h"
+#include "gromacs/gmxpreprocess/grompp_impl.h"
 #include "gromacs/gmxpreprocess/notset.h"
 #include "gromacs/gmxpreprocess/pgutil.h"
-#include "gromacs/gmxpreprocess/resall.h"
 #include "gromacs/gmxpreprocess/topio.h"
 #include "gromacs/gmxpreprocess/toputil.h"
 #include "gromacs/math/vec.h"
@@ -60,6 +58,9 @@
 #include "gromacs/utility/cstringutil.h"
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/smalloc.h"
+
+#include "hackblock.h"
+#include "resall.h"
 
 #define DIHEDRAL_WAS_SET_IN_RTP 0
 static bool was_dihedral_set_in_rtp(const t_param *dih)
@@ -262,7 +263,7 @@ static void cpparam(t_param *dest, t_param *src)
     }
 }
 
-static void set_p(t_param *p, const int ai[4], const real *c, char *s)
+static void set_p(t_param *p, const int ai[4], const real *c, const char *s)
 {
     int j;
 
@@ -463,13 +464,11 @@ static void clean_dih(t_param *dih, int *ndih, t_param improper[], int nimproper
     sfree(index);
 }
 
-static int get_impropers(t_atoms *atoms, t_hackblock hb[], t_param **improper,
+static int get_impropers(t_atoms *atoms, gmx::ArrayRef<MoleculePatchDatabase> globalPatches, t_param **improper,
                          bool bAllowMissing)
 {
-    t_rbondeds   *impropers;
-    int           nimproper, i, j, k, start, ninc, nalloc;
+    int           nimproper, start, ninc, nalloc;
     int           ai[MAXATOMLIST];
-    bool          bStop;
 
     ninc   = 500;
     nalloc = ninc;
@@ -478,22 +477,22 @@ static int get_impropers(t_atoms *atoms, t_hackblock hb[], t_param **improper,
     /* Add all the impropers from the residue database to the list. */
     nimproper = 0;
     start     = 0;
-    if (hb != nullptr)
+    if (!globalPatches.empty())
     {
-        for (i = 0; (i < atoms->nres); i++)
+        for (int i = 0; (i < atoms->nres); i++)
         {
-            impropers = &hb[i].rb[ebtsIDIHS];
-            for (j = 0; (j < impropers->nb); j++)
+            BondedInteractionList *impropers = &globalPatches[i].rb[ebtsIDIHS];
+            for (const auto &bondeds : impropers->b)
             {
-                bStop = FALSE;
-                for (k = 0; (k < 4) && !bStop; k++)
+                bool bStop = false;
+                for (int k = 0; (k < 4) && !bStop; k++)
                 {
-                    ai[k] = search_atom(impropers->b[j].a[k], start,
+                    ai[k] = search_atom(bondeds.a[k].c_str(), start,
                                         atoms,
                                         "improper", bAllowMissing);
                     if (ai[k] == -1)
                     {
-                        bStop = TRUE;
+                        bStop = true;
                     }
                 }
                 if (!bStop)
@@ -504,7 +503,7 @@ static int get_impropers(t_atoms *atoms, t_hackblock hb[], t_param **improper,
                         srenew(*improper, nalloc);
                     }
                     /* Not broken out */
-                    set_p(&((*improper)[nimproper]), ai, nullptr, impropers->b[j].s);
+                    set_p(&((*improper)[nimproper]), ai, nullptr, bondeds.s.c_str());
                     nimproper++;
                 }
             }
@@ -574,36 +573,32 @@ static void get_atomnames_min(int n, char **anm,
     }
 }
 
-static void gen_excls(t_atoms *atoms, t_excls *excls, t_hackblock hb[],
-                      bool bAllowMissing)
+static void gen_excls(t_atoms                             *atoms,
+                      t_excls                             *excls,
+                      gmx::ArrayRef<MoleculePatchDatabase> globalPatches,
+                      bool                                 bAllowMissing)
 {
-    int         r;
-    int         a, astart, i1, i2, itmp;
-    t_rbondeds *hbexcl;
-    int         e;
-    char       *anm;
-
-    astart = 0;
-    for (a = 0; a < atoms->nr; a++)
+    int astart = 0;
+    for (int a = 0; a < atoms->nr; a++)
     {
-        r = atoms->atom[a].resind;
+        int r = atoms->atom[a].resind;
         if (a == atoms->nr-1 || atoms->atom[a+1].resind != r)
         {
-            hbexcl = &hb[r].rb[ebtsEXCLS];
+            BondedInteractionList *hbexcl = &globalPatches[r].rb[ebtsEXCLS];
 
-            for (e = 0; e < hbexcl->nb; e++)
+            for (const auto &bondeds : hbexcl->b)
             {
-                anm = hbexcl->b[e].a[0];
-                i1  = search_atom(anm, astart, atoms,
-                                  "exclusion", bAllowMissing);
-                anm = hbexcl->b[e].a[1];
-                i2  = search_atom(anm, astart, atoms,
-                                  "exclusion", bAllowMissing);
+                const char *anm = bondeds.a[0].c_str();
+                int         i1  = search_atom(anm, astart, atoms,
+                                              "exclusion", bAllowMissing);
+                anm = bondeds.a[1].c_str();
+                int i2  = search_atom(anm, astart, atoms,
+                                      "exclusion", bAllowMissing);
                 if (i1 != -1 && i2 != -1)
                 {
                     if (i1 > i2)
                     {
-                        itmp = i1;
+                        int itmp = i1;
                         i1   = i2;
                         i2   = itmp;
                     }
@@ -617,7 +612,7 @@ static void gen_excls(t_atoms *atoms, t_excls *excls, t_hackblock hb[],
         }
     }
 
-    for (a = 0; a < atoms->nr; a++)
+    for (int a = 0; a < atoms->nr; a++)
     {
         if (excls[a].nr > 1)
         {
@@ -730,20 +725,14 @@ void generate_excls(t_nextnb *nnb, int nrexcl, t_excls excls[])
 }
 
 /* Generate pairs, angles and dihedrals from .rtp settings */
-void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
-             t_params plist[], t_excls excls[], t_hackblock hb[],
+void gen_pad(t_nextnb *nnb, t_atoms *atoms, gmx::ArrayRef<const PreprocessResidue> rtpFFDB,
+             t_params plist[], t_excls excls[], gmx::ArrayRef<MoleculePatchDatabase> globalPatches,
              bool bAllowMissing)
 {
     t_param    *ang, *dih, *pai, *improper;
-    t_rbondeds *hbang, *hbdih;
     char      **anm;
-    const char *p;
-    int         res, minres, maxres;
-    int         i, j, j1, k, k1, l, l1, m, n, i1, i2;
     int         ninc, maxang, maxdih, maxpai;
-    int         nang, ndih, npai, nimproper, nbd;
-    int         nFound;
-    bool        bFound, bExcl;
+    int         nang, ndih, npai, nimproper;
 
     /* These are the angles, dihedrals and pairs that we generate
      * from the bonds. The ones that are already there from the rtp file
@@ -759,22 +748,22 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
     snew(pai, maxpai);
 
     snew(anm, 4);
-    for (i = 0; i < 4; i++)
+    for (int i = 0; i < 4; i++)
     {
         snew(anm[i], 12);
     }
 
-    if (hb)
+    if (!globalPatches.empty())
     {
-        gen_excls(atoms, excls, hb, bAllowMissing);
+        gen_excls(atoms, excls, globalPatches, bAllowMissing);
         /* mark all entries as not matched yet */
-        for (i = 0; i < atoms->nres; i++)
+        for (int i = 0; i < atoms->nres; i++)
         {
-            for (j = 0; j < ebtsNR; j++)
+            for (int j = 0; j < ebtsNR; j++)
             {
-                for (k = 0; k < hb[i].rb[j].nb; k++)
+                for (auto &bondeds : globalPatches[i].rb[j].b)
                 {
-                    hb[i].rb[j].b[k].match = FALSE;
+                    bondeds.match = false;
                 }
             }
         }
@@ -782,17 +771,17 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
 
     /* Extract all i-j-k-l neighbours from nnb struct to generate all
      * angles and dihedrals. */
-    for (i = 0; (i < nnb->nr); i++)
+    for (int i = 0; (i < nnb->nr); i++)
     {
         /* For all particles */
-        for (j = 0; (j < nnb->nrexcl[i][1]); j++)
+        for (int j = 0; (j < nnb->nrexcl[i][1]); j++)
         {
             /* For all first neighbours */
-            j1 = nnb->a[i][1][j];
-            for (k = 0; (k < nnb->nrexcl[j1][1]); k++)
+            int j1 = nnb->a[i][1][j];
+            for (int k = 0; (k < nnb->nrexcl[j1][1]); k++)
             {
                 /* For all first neighbours of j1 */
-                k1 = nnb->a[j1][1][k];
+                int k1 = nnb->a[j1][1][k];
                 if (k1 != i)
                 {
                     /* Generate every angle only once */
@@ -809,37 +798,37 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
                         ang[nang].c0() = NOTSET;
                         ang[nang].c1() = NOTSET;
                         set_p_string(&(ang[nang]), "");
-                        if (hb)
+                        if (!globalPatches.empty())
                         {
-                            minres = atoms->atom[ang[nang].a[0]].resind;
-                            maxres = minres;
-                            for (m = 1; m < 3; m++)
+                            int minres = atoms->atom[ang[nang].a[0]].resind;
+                            int maxres = minres;
+                            for (int m = 1; m < 3; m++)
                             {
                                 minres = std::min(minres, atoms->atom[ang[nang].a[m]].resind);
                                 maxres = std::max(maxres, atoms->atom[ang[nang].a[m]].resind);
                             }
-                            res = 2*minres-maxres;
+                            int res = 2*minres-maxres;
                             do
                             {
                                 res += maxres-minres;
                                 get_atomnames_min(3, anm, res, atoms, ang[nang].a);
-                                hbang = &hb[res].rb[ebtsANGLES];
-                                for (l = 0; (l < hbang->nb); l++)
+                                BondedInteractionList *hbang = &globalPatches[res].rb[ebtsANGLES];
+                                for (auto &bondeds : hbang->b)
                                 {
-                                    if (strcmp(anm[1], hbang->b[l].aj()) == 0)
+                                    if (anm[1] == bondeds.aj())
                                     {
-                                        bFound = FALSE;
-                                        for (m = 0; m < 3; m += 2)
+                                        bool bFound = false;
+                                        for (int m = 0; m < 3; m += 2)
                                         {
                                             bFound = (bFound ||
-                                                      ((strcmp(anm[m], hbang->b[l].ai()) == 0) &&
-                                                       (strcmp(anm[2-m], hbang->b[l].ak()) == 0)));
+                                                      ((anm[m] == bondeds.ai()) &&
+                                                       (anm[2-m] == bondeds.ak())));
                                         }
                                         if (bFound)
                                         {
-                                            set_p_string(&(ang[nang]), hbang->b[l].s);
+                                            set_p_string(&(ang[nang]), bondeds.s.c_str());
                                             /* Mark that we found a match for this entry */
-                                            hbang->b[l].match = TRUE;
+                                            bondeds.match = true;
                                         }
                                     }
                                 }
@@ -852,10 +841,10 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
                        only once */
                     if (j1 < k1)
                     {
-                        for (l = 0; (l < nnb->nrexcl[k1][1]); l++)
+                        for (int l = 0; (l < nnb->nrexcl[k1][1]); l++)
                         {
                             /* For all first neighbours of k1 */
-                            l1 = nnb->a[k1][1][l];
+                            int l1 = nnb->a[k1][1][l];
                             if ((l1 != i) && (l1 != j1))
                             {
                                 if (ndih == maxdih)
@@ -867,43 +856,43 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
                                 dih[ndih].aj() = j1;
                                 dih[ndih].ak() = k1;
                                 dih[ndih].al() = l1;
-                                for (m = 0; m < MAXFORCEPARAM; m++)
+                                for (int m = 0; m < MAXFORCEPARAM; m++)
                                 {
                                     dih[ndih].c[m] = NOTSET;
                                 }
                                 set_p_string(&(dih[ndih]), "");
-                                nFound = 0;
-                                if (hb)
+                                int nFound = 0;
+                                if (!globalPatches.empty())
                                 {
-                                    minres = atoms->atom[dih[ndih].a[0]].resind;
-                                    maxres = minres;
-                                    for (m = 1; m < 4; m++)
+                                    int minres = atoms->atom[dih[ndih].a[0]].resind;
+                                    int maxres = minres;
+                                    for (int m = 1; m < 4; m++)
                                     {
                                         minres = std::min(minres, atoms->atom[dih[ndih].a[m]].resind);
                                         maxres = std::max(maxres, atoms->atom[dih[ndih].a[m]].resind);
                                     }
-                                    res = 2*minres-maxres;
+                                    int res = 2*minres-maxres;
                                     do
                                     {
                                         res += maxres-minres;
                                         get_atomnames_min(4, anm, res, atoms, dih[ndih].a);
-                                        hbdih = &hb[res].rb[ebtsPDIHS];
-                                        for (n = 0; (n < hbdih->nb); n++)
+                                        BondedInteractionList *hbdih = &globalPatches[res].rb[ebtsPDIHS];
+                                        for (auto &bondeds : hbdih->b)
                                         {
-                                            bFound = FALSE;
-                                            for (m = 0; m < 2; m++)
+                                            bool bFound = false;
+                                            for (int m = 0; m < 2; m++)
                                             {
                                                 bFound = (bFound ||
-                                                          ((strcmp(anm[3*m],  hbdih->b[n].ai()) == 0) &&
-                                                           (strcmp(anm[1+m],  hbdih->b[n].aj()) == 0) &&
-                                                           (strcmp(anm[2-m],  hbdih->b[n].ak()) == 0) &&
-                                                           (strcmp(anm[3-3*m], hbdih->b[n].al()) == 0)));
+                                                          ((anm[3*m] == bondeds.ai()) &&
+                                                           (anm[1+m] == bondeds.aj()) &&
+                                                           (anm[2-m] == bondeds.ak()) &&
+                                                           (anm[3-3*m] == bondeds.al())));
                                             }
                                             if (bFound)
                                             {
-                                                set_p_string(&dih[ndih], hbdih->b[n].s);
+                                                set_p_string(&dih[ndih], bondeds.s.c_str());
                                                 /* Mark that we found a match for this entry */
-                                                hbdih->b[n].match = TRUE;
+                                                bondeds.match = true;
 
                                                 /* Set the last parameter to be able to see
                                                    if the dihedral was in the rtp list.
@@ -923,7 +912,7 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
                                                 dih[ndih].aj() = j1;
                                                 dih[ndih].ak() = k1;
                                                 dih[ndih].al() = l1;
-                                                for (m = 0; m < MAXFORCEPARAM; m++)
+                                                for (int m = 0; m < MAXFORCEPARAM; m++)
                                                 {
                                                     dih[ndih].c[m] = NOTSET;
                                                 }
@@ -943,7 +932,7 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
                                     dih[ndih].aj() = j1;
                                     dih[ndih].ak() = k1;
                                     dih[ndih].al() = l1;
-                                    for (m = 0; m < MAXFORCEPARAM; m++)
+                                    for (int m = 0; m < MAXFORCEPARAM; m++)
                                     {
                                         dih[ndih].c[m] = NOTSET;
                                     }
@@ -951,19 +940,19 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
                                     ndih++;
                                 }
 
-                                nbd = nb_dist(nnb, i, l1);
+                                int nbd = nb_dist(nnb, i, l1);
                                 if (nbd == 3)
                                 {
-                                    i1    = std::min(i, l1);
-                                    i2    = std::max(i, l1);
-                                    bExcl = FALSE;
-                                    for (m = 0; m < excls[i1].nr; m++)
+                                    int  i1    = std::min(i, l1);
+                                    int  i2    = std::max(i, l1);
+                                    bool bExcl = false;
+                                    for (int m = 0; m < excls[i1].nr; m++)
                                     {
                                         bExcl = bExcl || excls[i1].e[m] == i2;
                                     }
                                     if (!bExcl)
                                     {
-                                        if (rtp[0].bGenerateHH14Interactions ||
+                                        if (rtpFFDB[0].bGenerateHH14Interactions ||
                                             !(is_hydro(atoms, i1) && is_hydro(atoms, i2)))
                                         {
                                             if (npai == maxpai)
@@ -988,20 +977,20 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
         }
     }
 
-    if (hb)
+    if (!globalPatches.empty())
     {
         /* The above approach is great in that we double-check that e.g. an angle
          * really corresponds to three atoms connected by bonds, but this is not
          * generally true. Go through the angle and dihedral hackblocks to add
          * entries that we have not yet marked as matched when going through bonds.
          */
-        for (i = 0; i < atoms->nres; i++)
+        for (int i = 0; i < atoms->nres; i++)
         {
             /* Add remaining angles from hackblock */
-            hbang = &hb[i].rb[ebtsANGLES];
-            for (j = 0; j < hbang->nb; j++)
+            BondedInteractionList *hbang = &globalPatches[i].rb[ebtsANGLES];
+            for (auto &bondeds : hbang->b)
             {
-                if (hbang->b[j].match)
+                if (bondeds.match)
                 {
                     /* We already used this entry, continue to the next */
                     continue;
@@ -1012,11 +1001,11 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
                     maxang += ninc;
                     srenew(ang, maxang);
                 }
-                bFound = TRUE;
-                for (k = 0; k < 3 && bFound; k++)
+                bool bFound = true;
+                for (int k = 0; k < 3 && bFound; k++)
                 {
-                    p   = hbang->b[j].a[k];
-                    res = i;
+                    const char *p   = bondeds.a[k].c_str();
+                    int         res = i;
                     if (p[0] == '-')
                     {
                         p++;
@@ -1035,18 +1024,18 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
 
                 if (bFound)
                 {
-                    set_p_string(&(ang[nang]), hbang->b[j].s);
-                    hbang->b[j].match = TRUE;
+                    set_p_string(&(ang[nang]), bondeds.s.c_str());
+                    bondeds.match = true;
                     /* Incrementing nang means we save this angle */
                     nang++;
                 }
             }
 
             /* Add remaining dihedrals from hackblock */
-            hbdih = &hb[i].rb[ebtsPDIHS];
-            for (j = 0; j < hbdih->nb; j++)
+            BondedInteractionList *hbdih = &globalPatches[i].rb[ebtsPDIHS];
+            for (auto &bondeds : hbdih->b)
             {
-                if (hbdih->b[j].match)
+                if (bondeds.match)
                 {
                     /* We already used this entry, continue to the next */
                     continue;
@@ -1057,11 +1046,11 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
                     maxdih += ninc;
                     srenew(dih, maxdih);
                 }
-                bFound = TRUE;
-                for (k = 0; k < 4 && bFound; k++)
+                bool bFound = true;
+                for (int k = 0; k < 4 && bFound; k++)
                 {
-                    p   = hbdih->b[j].a[k];
-                    res = i;
+                    const char *p   = bondeds.a[k].c_str();
+                    int         res = i;
                     if (p[0] == '-')
                     {
                         p++;
@@ -1075,15 +1064,15 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
                     dih[ndih].a[k] = search_res_atom(p, res, atoms, "dihedral", TRUE);
                     bFound         = (dih[ndih].a[k] != -1);
                 }
-                for (m = 0; m < MAXFORCEPARAM; m++)
+                for (int m = 0; m < MAXFORCEPARAM; m++)
                 {
                     dih[ndih].c[m] = NOTSET;
                 }
 
                 if (bFound)
                 {
-                    set_p_string(&(dih[ndih]), hbdih->b[j].s);
-                    hbdih->b[j].match = TRUE;
+                    set_p_string(&(dih[ndih]), bondeds.s.c_str());
+                    bondeds.match = true;
                     /* Incrementing ndih means we save this dihedral */
                     ndih++;
                 }
@@ -1118,7 +1107,7 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
     }
 
     /* Get the impropers from the database */
-    nimproper = get_impropers(atoms, hb, &improper, bAllowMissing);
+    nimproper = get_impropers(atoms, globalPatches, &improper, bAllowMissing);
 
     /* Sort the impropers */
     sort_id(nimproper, improper);
@@ -1127,8 +1116,8 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
     {
         fprintf(stderr, "Before cleaning: %d dihedrals\n", ndih);
         clean_dih(dih, &ndih, improper, nimproper, atoms,
-                  rtp[0].bKeepAllGeneratedDihedrals,
-                  rtp[0].bRemoveDihedralIfWithImproper);
+                  rtpFFDB[0].bKeepAllGeneratedDihedrals,
+                  rtpFFDB[0].bRemoveDihedralIfWithImproper);
     }
 
     /* Now we have unique lists of angles and dihedrals
@@ -1140,7 +1129,7 @@ void gen_pad(t_nextnb *nnb, t_atoms *atoms, t_restp rtp[],
     cppar(pai, npai, plist, F_LJ14);
 
     /* Remove all exclusions which are within nrexcl */
-    clean_excls(nnb, rtp[0].nrexcl, excls);
+    clean_excls(nnb, rtpFFDB[0].nrexcl, excls);
 
     sfree(ang);
     sfree(dih);

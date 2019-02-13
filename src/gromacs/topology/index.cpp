@@ -120,7 +120,7 @@ void add_grp(t_blocka *b, char ***gnames, gmx::ArrayRef<const int> a, const std:
     (*gnames)[b->nr] = gmx_strdup(name.c_str());
 
     srenew(b->a, b->nra+a.size());
-    for (int i = 0; (i < a.size()); i++)
+    for (int i = 0; (i < a.ssize()); i++)
     {
         b->a[b->nra++] = a[i];
     }
@@ -150,11 +150,11 @@ static bool grp_cmp(t_blocka *b, gmx::ArrayRef<const int> a, int index)
         gmx_fatal(FARGS, "no such index group %d in t_blocka (nr=%d)", index, b->nr);
     }
     /* compare sizes */
-    if (a.size() != b->index[index+1] - b->index[index])
+    if (a.ssize() != b->index[index+1] - b->index[index])
     {
         return FALSE;
     }
-    for (int i = 0; i < a.size(); i++)
+    for (int i = 0; i < a.ssize(); i++)
     {
         if (a[i] != b->a[b->index[index]+i])
         {
@@ -178,7 +178,7 @@ static void p_status(gmx::ArrayRef<const std::string> restype,
                    }
                    );
 
-    for (int i = 0; (i < typenames.size()); i++)
+    for (int i = 0; (i < typenames.ssize()); i++)
     {
         if (counter[i] > 0)
         {
@@ -459,6 +459,7 @@ static void analyse_prot(gmx::ArrayRef<const std::string> restype, const t_atoms
         {
             add_grp(gb, gn, aid, constructing_data[i].group_name);
         }
+        aid.clear();
     }
 
     if (bASK)
@@ -587,16 +588,13 @@ void analyse(const t_atoms *atoms, t_blocka *gb, char ***gn, gmx_bool bASK, gmx_
         int i = 0;
 
         resnm = *atoms->resinfo[i].name;
-        const char *type = nullptr;
-        rt.nameIndexedInResidueTypes(resnm, &type);
-        restype.emplace_back(type);
+        restype.emplace_back(rt.typeNameForIndexedResidue(resnm));
         previousTypename.push_back(restype[i]);
 
         for (i = 1; i < atoms->nres; i++)
         {
             resnm = *atoms->resinfo[i].name;
-            rt.nameIndexedInResidueTypes(resnm, &type);
-            restype.emplace_back(type);
+            restype.emplace_back(rt.typeNameForIndexedResidue(resnm));
 
             /* Note that this does not lead to a N*N loop, but N*K, where
              * K is the number of residue _types_, which is small and independent of N.
@@ -631,7 +629,7 @@ void analyse(const t_atoms *atoms, t_blocka *gb, char ***gn, gmx_bool bASK, gmx_
 
             /* Create a Non-Protein group */
             aid = mk_aid(atoms, restype, "Protein", FALSE);
-            if ((!aid.empty()) && (static_cast<int>(aid.size()) < atoms->nr))
+            if ((!aid.empty()) && (gmx::ssize(aid) < atoms->nr))
             {
                 add_grp(gb, gn, aid, "non-Protein");
             }
@@ -645,7 +643,7 @@ void analyse(const t_atoms *atoms, t_blocka *gb, char ***gn, gmx_bool bASK, gmx_
 
             /* Solvent, create a negated group too */
             aid = mk_aid(atoms, restype, "Water", FALSE);
-            if ((!aid.empty()) && (static_cast<int>(aid.size()) < atoms->nr))
+            if ((!aid.empty()) && (gmx::ssize(aid) < atoms->nr))
             {
                 add_grp(gb, gn, aid, "non-Water");
             }

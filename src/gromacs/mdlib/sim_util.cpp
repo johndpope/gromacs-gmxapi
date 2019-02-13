@@ -61,11 +61,11 @@
 #include "gromacs/gmxlib/nonbonded/nonbonded.h"
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/listed-forces/bonded.h"
-#include "gromacs/listed-forces/disre.h"
-#include "gromacs/listed-forces/gpubonded.h"
-#include "gromacs/listed-forces/manage-threading.h"
-#include "gromacs/listed-forces/orires.h"
+#include "gromacs/listed_forces/bonded.h"
+#include "gromacs/listed_forces/disre.h"
+#include "gromacs/listed_forces/gpubonded.h"
+#include "gromacs/listed_forces/manage_threading.h"
+#include "gromacs/listed_forces/orires.h"
 #include "gromacs/math/arrayrefwithpadding.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/units.h"
@@ -112,7 +112,6 @@
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/gmxmpi.h"
 #include "gromacs/utility/logger.h"
-#include "gromacs/utility/pleasecite.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/strconvert.h"
 #include "gromacs/utility/sysinfo.h"
@@ -1602,7 +1601,7 @@ static void do_force_cutsVERLET(FILE *fplog,
             }
 
             /* skip the reduction if there was no non-local work to do */
-            if (nbv->grp[eintNonlocal].nbl_lists.nblGpu[0]->nsci > 0)
+            if (!nbv->grp[eintNonlocal].nbl_lists.nblGpu[0]->sci.empty())
             {
                 nbnxn_atomdata_add_nbat_f_to_f(nbv->nbs.get(), eatNonlocal,
                                                nbv->nbat, f, wcycle);
@@ -2871,49 +2870,59 @@ void finish_run(FILE *fplog, const gmx::MDLogger &mdlog, const t_commrec *cr,
     }
 }
 
-extern void initialize_lambdas(FILE *fplog, t_inputrec *ir, int *fep_state, gmx::ArrayRef<real> lambda, double *lam0)
+void initialize_lambdas(FILE               *fplog,
+                        const t_inputrec   &ir,
+                        bool                isMaster,
+                        int                *fep_state,
+                        gmx::ArrayRef<real> lambda,
+                        double             *lam0)
 {
-    /* this function works, but could probably use a logic rewrite to keep all the different
-       types of efep straight. */
+    /* TODO: Clean up initialization of fep_state and lambda in
+       t_state.  This function works, but could probably use a logic
+       rewrite to keep all the different types of efep straight. */
 
-    if ((ir->efep == efepNO) && (!ir->bSimTemp))
+    if ((ir.efep == efepNO) && (!ir.bSimTemp))
     {
         return;
     }
 
-    t_lambda *fep = ir->fepvals;
-    *fep_state    = fep->init_fep_state; /* this might overwrite the checkpoint
-                                            if checkpoint is set -- a kludge is in for now
-                                            to prevent this.*/
+    const t_lambda *fep = ir.fepvals;
+    if (isMaster)
+    {
+        *fep_state = fep->init_fep_state; /* this might overwrite the checkpoint
+                                             if checkpoint is set -- a kludge is in for now
+                                             to prevent this.*/
+    }
 
     for (int i = 0; i < efptNR; i++)
     {
+        double thisLambda;
         /* overwrite lambda state with init_lambda for now for backwards compatibility */
-        if (fep->init_lambda >= 0) /* if it's -1, it was never initializd */
+        if (fep->init_lambda >= 0) /* if it's -1, it was never initialized */
         {
-            lambda[i] = fep->init_lambda;
-            if (lam0)
-            {
-                lam0[i] = lambda[i];
-            }
+            thisLambda = fep->init_lambda;
         }
         else
         {
-            lambda[i] = fep->all_lambda[i][*fep_state];
-            if (lam0)
-            {
-                lam0[i] = lambda[i];
-            }
+            thisLambda = fep->all_lambda[i][fep->init_fep_state];
+        }
+        if (isMaster)
+        {
+            lambda[i] = thisLambda;
+        }
+        if (lam0 != nullptr)
+        {
+            lam0[i] = thisLambda;
         }
     }
-    if (ir->bSimTemp)
+    if (ir.bSimTemp)
     {
         /* need to rescale control temperatures to match current state */
-        for (int i = 0; i < ir->opts.ngtc; i++)
+        for (int i = 0; i < ir.opts.ngtc; i++)
         {
-            if (ir->opts.ref_t[i] > 0)
+            if (ir.opts.ref_t[i] > 0)
             {
-                ir->opts.ref_t[i] = ir->simtempvals->temperatures[*fep_state];
+                ir.opts.ref_t[i] = ir.simtempvals->temperatures[fep->init_fep_state];
             }
         }
     }
@@ -2927,132 +2936,5 @@ extern void initialize_lambdas(FILE *fplog, t_inputrec *ir, int *fep_state, gmx:
             fprintf(fplog, "%10.4f ", l);
         }
         fprintf(fplog, "]\n");
-    }
-}
-
-
-void init_md(FILE *fplog,
-             const t_commrec *cr, gmx::IMDOutputProvider *outputProvider,
-             t_inputrec *ir, const gmx_output_env_t *oenv,
-             const MdrunOptions &mdrunOptions,
-             double *t, double *t0,
-             t_state *globalState, double *lam0,
-             t_nrnb *nrnb, gmx_mtop_t *mtop,
-             gmx_update_t **upd,
-             gmx::BoxDeformation *deform,
-             int nfile, const t_filenm fnm[],
-             gmx_mdoutf_t *outf, t_mdebin **mdebin,
-             tensor force_vir, tensor shake_vir,
-             tensor total_vir, tensor pres, rvec mu_tot,
-             gmx_bool *bSimAnn,
-             gmx_wallcycle_t wcycle)
-{
-    int  i;
-
-    /* Initial values */
-    *t = *t0       = ir->init_t;
-
-    *bSimAnn = FALSE;
-    for (i = 0; i < ir->opts.ngtc; i++)
-    {
-        /* set bSimAnn if any group is being annealed */
-        if (ir->opts.annealing[i] != eannNO)
-        {
-            *bSimAnn = TRUE;
-        }
-    }
-
-    /* Initialize lambda variables */
-    /* TODO: Clean up initialization of fep_state and lambda in t_state.
-     * We currently need to call initialize_lambdas on non-master ranks
-     * to initialize lam0.
-     */
-    if (MASTER(cr))
-    {
-        initialize_lambdas(fplog, ir, &globalState->fep_state, globalState->lambda, lam0);
-    }
-    else
-    {
-        int                      tmpFepState;
-        std::array<real, efptNR> tmpLambda;
-        initialize_lambdas(fplog, ir, &tmpFepState, tmpLambda, lam0);
-    }
-
-    // TODO upd is never NULL in practice, but the analysers don't know that
-    if (upd)
-    {
-        *upd = init_update(ir, deform);
-    }
-    if (*bSimAnn)
-    {
-        update_annealing_target_temp(ir, ir->init_t, upd ? *upd : nullptr);
-    }
-
-    if (EI_DYNAMICS(ir->eI) && !mdrunOptions.continuationOptions.appendFiles)
-    {
-        if (ir->etc == etcBERENDSEN)
-        {
-            please_cite(fplog, "Berendsen84a");
-        }
-        if (ir->etc == etcVRESCALE)
-        {
-            please_cite(fplog, "Bussi2007a");
-        }
-        if (ir->eI == eiSD1)
-        {
-            please_cite(fplog, "Goga2012");
-        }
-    }
-    init_nrnb(nrnb);
-
-    if (nfile != -1)
-    {
-        *outf = init_mdoutf(fplog, nfile, fnm, mdrunOptions, cr, outputProvider, ir, mtop, oenv, wcycle);
-
-        *mdebin = init_mdebin(mdrunOptions.continuationOptions.appendFiles ? nullptr : mdoutf_get_fp_ene(*outf),
-                              mtop, ir, mdoutf_get_fp_dhdl(*outf));
-    }
-
-    /* Initiate variables */
-    clear_mat(force_vir);
-    clear_mat(shake_vir);
-    clear_rvec(mu_tot);
-    clear_mat(total_vir);
-    clear_mat(pres);
-}
-
-void init_rerun(FILE *fplog,
-                const t_commrec *cr, gmx::IMDOutputProvider *outputProvider,
-                t_inputrec *ir, const gmx_output_env_t *oenv,
-                const MdrunOptions &mdrunOptions,
-                t_state *globalState, double *lam0,
-                t_nrnb *nrnb, gmx_mtop_t *mtop,
-                int nfile, const t_filenm fnm[],
-                gmx_mdoutf_t *outf, t_mdebin **mdebin,
-                gmx_wallcycle_t wcycle)
-{
-    /* Initialize lambda variables */
-    /* TODO: Clean up initialization of fep_state and lambda in t_state.
-     * We currently need to call initialize_lambdas on non-master ranks
-     * to initialize lam0.
-     */
-    if (MASTER(cr))
-    {
-        initialize_lambdas(fplog, ir, &globalState->fep_state, globalState->lambda, lam0);
-    }
-    else
-    {
-        int                      tmpFepState;
-        std::array<real, efptNR> tmpLambda;
-        initialize_lambdas(fplog, ir, &tmpFepState, tmpLambda, lam0);
-    }
-
-    init_nrnb(nrnb);
-
-    if (nfile != -1)
-    {
-        *outf   = init_mdoutf(fplog, nfile, fnm, mdrunOptions, cr, outputProvider, ir, mtop, oenv, wcycle);
-        *mdebin = init_mdebin(mdrunOptions.continuationOptions.appendFiles ? nullptr : mdoutf_get_fp_ene(*outf),
-                              mtop, ir, mdoutf_get_fp_dhdl(*outf), true);
     }
 }

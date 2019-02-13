@@ -33,12 +33,19 @@
 # the research papers on the package. Check out http://www.gromacs.org.
 
 cmake_minimum_required(VERSION 3.9.6)
+if(POLICY CMP0074) #3.12
+    cmake_policy(SET CMP0074 NEW)
+endif()
 
 # CMake modules/macros are in a subdirectory to keep this file cleaner
 # This needs to be set before project() in order to pick up toolchain files
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Platform)
 
 project(Gromacs)
+
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(gmxManageCcache)
 
@@ -139,25 +146,6 @@ endif()
 include(gmxDetectTargetArchitecture)
 gmx_detect_target_architecture()
 
-# Permit the user to specify a particular standard library, e.g. compiling
-# with "-stdlib=libc++" and linking with "-lc++abi -lc++" to get clang's libcxx.
-set(GMX_STDLIB_CXX_FLAGS "" CACHE STRING "Compiler flag for a C++ standard library flavour")
-set(GMX_STDLIB_LIBRARIES "" CACHE STRING "Linker libraries for a particular C++ standard library")
-mark_as_advanced(GMX_STDLIB_CXX_FLAGS)
-mark_as_advanced(GMX_STDLIB_LIBRARIES)
-
-include(CheckCCompilerFlag)
-include(CheckCXXCompilerFlag)
-
-# This must come early, since some of our configuration flag tests
-# depend on being able to compile C++11 source files.
-include(gmxTestCXX11)
-gmx_test_cxx11(GMX_CXX11_FLAGS GMX_STDLIB_CXX_FLAGS GMX_STDLIB_LIBRARIES)
-
-# Make sure all C++ code will be compiled in C++11 mode, with the
-# expected standard library.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GMX_CXX11_FLAGS} ${GMX_STDLIB_CXX_FLAGS}")
-
 ########################################################################
 # User input options                                                   #
 ########################################################################
@@ -191,14 +179,8 @@ gmx_add_cache_dependency(GMX_COOL_QUOTES BOOL "NOT GMX_FAHCORE" OFF)
 
 option(GMX_USE_OPENCL "Enable OpenCL acceleration" OFF)
 
-# Decide on GPU settings based on user-settings and GPU/CUDA
-# detection. VS2017 requires CUDA 9.0, for the other arch/compilers
-# rest we require CUDA 7.0 or later (including for clang-CUDA).
-if(MSVC)
-    set(REQUIRED_CUDA_VERSION 9.0)
-else()
-    set(REQUIRED_CUDA_VERSION 7.0)
-endif()
+# The earliest version of the CUDA toolkit that supports c++14 is 9.0
+set(REQUIRED_CUDA_VERSION 9.0)
 set(REQUIRED_CUDA_COMPUTE_CAPABILITY 3.0)
 
 # OpenCL required version: 1.2 or newer
@@ -376,10 +358,6 @@ check_include_files(time.h       HAVE_TIME_H)
 check_include_files(sys/time.h   HAVE_SYS_TIME_H)
 check_include_files(io.h         HAVE_IO_H)
 check_include_files(sched.h      HAVE_SCHED_H)
-
-check_include_files(regex.h      HAVE_POSIX_REGEX)
-# TODO: It could be nice to inform the user if no regex support is found,
-# as selections won't be fully functional.
 
 include(CheckCXXSymbolExists)
 check_cxx_symbol_exists(gettimeofday      sys/time.h   HAVE_GETTIMEOFDAY)
@@ -674,8 +652,6 @@ gmx_test_sigusr1(HAVE_SIGUSR1)
 
 include(gmxTestPipes)
 gmx_test_pipes(HAVE_PIPES)
-
-check_include_file_cxx(regex     HAVE_CXX11_REGEX)
 
 include(gmxTestXDR)
 gmx_test_xdr(GMX_SYSTEM_XDR)

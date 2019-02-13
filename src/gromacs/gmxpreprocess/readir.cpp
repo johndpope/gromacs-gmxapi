@@ -3,7 +3,7 @@
  *
  * Copyright (c) 1991-2000, University of Groningen, The Netherlands.
  * Copyright (c) 2001-2004, The GROMACS development team.
- * Copyright (c) 2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
+ * Copyright (c) 2013,2014,2015,2016,2017,2018,2019, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -46,7 +46,7 @@
 #include <algorithm>
 #include <string>
 
-#include "gromacs/awh/read-params.h"
+#include "gromacs/awh/read_params.h"
 #include "gromacs/fileio/readinp.h"
 #include "gromacs/fileio/warninp.h"
 #include "gromacs/gmxlib/chargegroup.h"
@@ -60,7 +60,7 @@
 #include "gromacs/mdrunutility/mdmodules.h"
 #include "gromacs/mdtypes/inputrec.h"
 #include "gromacs/mdtypes/md_enums.h"
-#include "gromacs/mdtypes/pull-params.h"
+#include "gromacs/mdtypes/pull_params.h"
 #include "gromacs/options/options.h"
 #include "gromacs/options/treesupport.h"
 #include "gromacs/pbcutil/pbc.h"
@@ -2646,7 +2646,7 @@ static bool do_numbering(int natoms, gmx_groups_t *groups,
     }
 
     snew(grps->nm_ind, groupsFromMdpFile.size()+1); /* +1 for possible rest group */
-    for (int i = 0; i != groupsFromMdpFile.size(); ++i)
+    for (int i = 0; i != groupsFromMdpFile.ssize(); ++i)
     {
         /* Lookup the group name in the block structure */
         gid = search_string(groupsFromMdpFile[i].c_str(), block->nr, gnames);
@@ -2765,7 +2765,6 @@ static void calc_nrdf(const gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
     int                    *nrdf2, *na_vcm, na_tot;
     double                 *nrdf_tc, *nrdf_vcm, nrdf_uc, *nrdf_vcm_sub;
     ivec                   *dof_vcm;
-    gmx_mtop_atomloop_all_t aloop;
     int                     mol, ftype, as;
 
     /* Calculate nrdf.
@@ -2803,15 +2802,15 @@ static void calc_nrdf(const gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
     }
 
     snew(nrdf2, natoms);
-    aloop = gmx_mtop_atomloop_all_init(mtop);
-    const t_atom *atom;
-    while (gmx_mtop_atomloop_all_next(aloop, &i, &atom))
+    for (const AtomProxy atomP : AtomRange(*mtop))
     {
+        const t_atom &local = atomP.atom();
+        int           i     = atomP.globalAtomNumber();
         nrdf2[i] = 0;
-        if (atom->ptype == eptAtom || atom->ptype == eptNucleus)
+        if (local.ptype == eptAtom || local.ptype == eptNucleus)
         {
             g = getGroupType(groups, egcFREEZE, i);
-            for (d = 0; d < DIM; d++)
+            for (int d = 0; d < DIM; d++)
             {
                 if (opts->nFreeze[g][d] == 0)
                 {
@@ -2830,7 +2829,7 @@ static void calc_nrdf(const gmx_mtop_t *mtop, t_inputrec *ir, char **gnames)
     for (const gmx_molblock_t &molb : mtop->molblock)
     {
         const gmx_moltype_t &molt = mtop->moltype[molb.type];
-        atom = molt.atoms.atom;
+        const t_atom        *atom = molt.atoms.atom;
         for (mol = 0; mol < molb.nmol; mol++)
         {
             for (ftype = F_CONSTR; ftype <= F_CONSTRNC; ftype++)
@@ -3953,7 +3952,6 @@ void triple_check(const char *mdparin, t_inputrec *ir, gmx_mtop_t *sys,
     real                     *mgrp, mt;
     rvec                      acc;
     gmx_mtop_atomloop_block_t aloopb;
-    gmx_mtop_atomloop_all_t   aloop;
     ivec                      AbsRef;
     char                      warn_buf[STRLEN];
 
@@ -4142,11 +4140,11 @@ void triple_check(const char *mdparin, t_inputrec *ir, gmx_mtop_t *sys,
     {
         clear_rvec(acc);
         snew(mgrp, sys->groups.grps[egcACC].nr);
-        aloop = gmx_mtop_atomloop_all_init(sys);
-        const t_atom *atom;
-        while (gmx_mtop_atomloop_all_next(aloop, &i, &atom))
+        for (const AtomProxy atomP : AtomRange(*sys))
         {
-            mgrp[getGroupType(sys->groups, egcACC, i)] += atom->m;
+            const t_atom &local = atomP.atom();
+            int           i     = atomP.globalAtomNumber();
+            mgrp[getGroupType(sys->groups, egcACC, i)] += local.m;
         }
         mt = 0.0;
         for (i = 0; (i < sys->groups.grps[egcACC].nr); i++)

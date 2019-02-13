@@ -47,7 +47,6 @@
 
 struct gmx_output_env_t;
 struct gmx_pme_t;
-struct gmx_update_t;
 struct MdrunOptions;
 struct nonbonded_verlet_t;
 struct t_forcerec;
@@ -60,6 +59,7 @@ class BoxDeformation;
 class Constraints;
 class IMDOutputProvider;
 class MDLogger;
+class Update;
 }
 
 typedef struct gmx_global_stat *gmx_global_stat_t;
@@ -136,38 +136,24 @@ void calc_dispcorr(const t_inputrec *ir, const t_forcerec *fr,
                    const matrix box, real lambda, tensor pres, tensor virial,
                    real *prescorr, real *enercorr, real *dvdlcorr);
 
-void initialize_lambdas(FILE *fplog, t_inputrec *ir, int *fep_state, gmx::ArrayRef<real> lambda, double *lam0);
+/*! \brief Fills fep_state, lambda, and lam0 if needed
+ *
+ * If FEP or simulated tempering is in use:
+ *
+ *    fills non-null lam0 with the initial lambda values, and
+ *    on master rank fills fep_state and lambda.
+ *
+ * Reports the initial lambda state to the log file. */
+void initialize_lambdas(FILE               *fplog,
+                        const t_inputrec   &ir,
+                        bool                isMaster,
+                        int                *fep_state,
+                        gmx::ArrayRef<real> lambda,
+                        double             *lam0);
 
 void do_constrain_first(FILE *log, gmx::Constraints *constr,
                         const t_inputrec *inputrec, const t_mdatoms *md,
                         t_state *state);
-
-void init_md(FILE *fplog,
-             const t_commrec *cr, gmx::IMDOutputProvider *outputProvider,
-             t_inputrec *ir, const gmx_output_env_t *oenv,
-             const MdrunOptions &mdrunOptions,
-             double *t, double *t0,
-             t_state *globalState, double *lam0,
-             t_nrnb *nrnb, gmx_mtop_t *mtop,
-             gmx_update_t **upd,
-             gmx::BoxDeformation *deform,
-             int nfile, const t_filenm fnm[],
-             gmx_mdoutf_t *outf, t_mdebin **mdebin,
-             tensor force_vir, tensor shake_vir,
-             tensor total_vir, tensor pres,
-             rvec mu_tot,
-             gmx_bool *bSimAnn,
-             gmx_wallcycle_t wcycle);
-
-void init_rerun(FILE *fplog,
-                const t_commrec *cr, gmx::IMDOutputProvider *outputProvider,
-                t_inputrec *ir, const gmx_output_env_t *oenv,
-                const MdrunOptions &mdrunOptions,
-                t_state *globalState, double *lam0,
-                t_nrnb *nrnb, gmx_mtop_t *mtop,
-                int nfile, const t_filenm fnm[],
-                gmx_mdoutf_t *outf, t_mdebin **mdebin,
-                gmx_wallcycle_t wcycle);
 
 /* Routine in sim_util.c */
 

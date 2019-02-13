@@ -44,14 +44,14 @@
 #include <cstring>
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 #include <sys/types.h>
 
-#include "gromacs/awh/read-params.h"
+#include "gromacs/awh/read_params.h"
 #include "gromacs/commandline/pargs.h"
-#include "gromacs/compat/make_unique.h"
-#include "gromacs/ewald/ewald-utils.h"
+#include "gromacs/ewald/ewald_utils.h"
 #include "gromacs/ewald/pme.h"
 #include "gromacs/fft/calcgrid.h"
 #include "gromacs/fileio/confio.h"
@@ -63,7 +63,7 @@
 #include "gromacs/gmxpreprocess/convparm.h"
 #include "gromacs/gmxpreprocess/gen_maxwell_velocities.h"
 #include "gromacs/gmxpreprocess/gpp_atomtype.h"
-#include "gromacs/gmxpreprocess/grompp-impl.h"
+#include "gromacs/gmxpreprocess/grompp_impl.h"
 #include "gromacs/gmxpreprocess/notset.h"
 #include "gromacs/gmxpreprocess/readir.h"
 #include "gromacs/gmxpreprocess/tomorse.h"
@@ -79,6 +79,7 @@
 #include "gromacs/mdlib/compute_io.h"
 #include "gromacs/mdlib/constr.h"
 #include "gromacs/mdlib/perf_est.h"
+#include "gromacs/mdlib/qmmm.h"
 #include "gromacs/mdlib/sim_util.h"
 #include "gromacs/mdrunutility/mdmodules.h"
 #include "gromacs/mdtypes/inputrec.h"
@@ -363,18 +364,15 @@ static void check_bonds_timestep(const gmx_mtop_t *mtop, double dt, warninp *wi)
 
 static void check_vel(gmx_mtop_t *mtop, rvec v[])
 {
-    gmx_mtop_atomloop_all_t aloop;
-    const t_atom           *atom;
-    int                     a;
-
-    aloop = gmx_mtop_atomloop_all_init(mtop);
-    while (gmx_mtop_atomloop_all_next(aloop, &a, &atom))
+    for (const AtomProxy atomP : AtomRange(*mtop))
     {
-        if (atom->ptype == eptShell ||
-            atom->ptype == eptBond  ||
-            atom->ptype == eptVSite)
+        const t_atom &local = atomP.atom();
+        int           i     = atomP.globalAtomNumber();
+        if (local.ptype == eptShell ||
+            local.ptype == eptBond  ||
+            local.ptype == eptVSite)
         {
-            clear_rvec(v[a]);
+            clear_rvec(v[i]);
         }
     }
 }
@@ -383,16 +381,14 @@ static void check_shells_inputrec(gmx_mtop_t *mtop,
                                   t_inputrec *ir,
                                   warninp    *wi)
 {
-    gmx_mtop_atomloop_all_t aloop;
-    const t_atom           *atom;
-    int                     a, nshells = 0;
-    char                    warn_buf[STRLEN];
+    int                        nshells = 0;
+    char                       warn_buf[STRLEN];
 
-    aloop = gmx_mtop_atomloop_all_init(mtop);
-    while (gmx_mtop_atomloop_all_next(aloop, &a, &atom))
+    for (const AtomProxy atomP : AtomRange(*mtop))
     {
-        if (atom->ptype == eptShell ||
-            atom->ptype == eptBond)
+        const t_atom &local = atomP.atom();
+        if (local.ptype == eptShell ||
+            local.ptype == eptBond)
         {
             nshells++;
         }
@@ -670,14 +666,13 @@ new_status(const char *topfile, const char *topppfile, const char *confin,
     if (bGenVel)
     {
         real                   *mass;
-        gmx_mtop_atomloop_all_t aloop;
-        const t_atom           *atom;
 
         snew(mass, state->natoms);
-        aloop = gmx_mtop_atomloop_all_init(sys);
-        while (gmx_mtop_atomloop_all_next(aloop, &i, &atom))
+        for (const AtomProxy atomP : AtomRange(*sys))
         {
-            mass[i] = atom->m;
+            const t_atom &local = atomP.atom();
+            int           i     = atomP.globalAtomNumber();
+            mass[i] = local.m;
         }
 
         if (opts->seed == -1)
@@ -1240,15 +1235,12 @@ static real calc_temp(const gmx_mtop_t *mtop,
                       const t_inputrec *ir,
                       rvec             *v)
 {
-    gmx_mtop_atomloop_all_t aloop;
-    const t_atom           *atom;
-    int                     a;
-
-    double                  sum_mv2 = 0;
-    aloop = gmx_mtop_atomloop_all_init(mtop);
-    while (gmx_mtop_atomloop_all_next(aloop, &a, &atom))
+    double                     sum_mv2 = 0;
+    for (const AtomProxy atomP : AtomRange(*mtop))
     {
-        sum_mv2 += atom->m*norm2(v[a]);
+        const t_atom &local = atomP.atom();
+        int           i     = atomP.globalAtomNumber();
+        sum_mv2 += local.m*norm2(v[i]);
     }
 
     double nrdf = 0;
@@ -2137,7 +2129,7 @@ int gmx_grompp(int argc, char *argv[])
         pr_symtab(debug, 0, "After close", &sys.symtab);
     }
 
-    /* make exclusions between QM atoms */
+    /* make exclusions between QM atoms and remove charges if needed */
     if (ir->bQMMM)
     {
         if (ir->QMMMscheme == eQMMMschemenormal && ir->ns_type == ensSIMPLE)
@@ -2147,6 +2139,11 @@ int gmx_grompp(int argc, char *argv[])
         else
         {
             generate_qmexcl(&sys, ir, wi, GmxQmmmMode::GMX_QMMM_ORIGINAL);
+        }
+        if (ir->QMMMscheme != eQMMMschemeoniom)
+        {
+            std::vector<int> qmmmAtoms = qmmmAtomIndices(*ir, sys);
+            removeQmmmAtomCharges(&sys, qmmmAtoms);
         }
     }
 

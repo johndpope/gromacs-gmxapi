@@ -52,7 +52,6 @@
 
 #include "gromacs/awh/awh.h"
 #include "gromacs/commandline/filenm.h"
-#include "gromacs/compat/make_unique.h"
 #include "gromacs/domdec/collect.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_network.h"
@@ -60,13 +59,13 @@
 #include "gromacs/domdec/partition.h"
 #include "gromacs/essentialdynamics/edsam.h"
 #include "gromacs/ewald/pme.h"
-#include "gromacs/ewald/pme-load-balancing.h"
+#include "gromacs/ewald/pme_load_balancing.h"
 #include "gromacs/fileio/trxio.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nrnb.h"
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/imd/imd.h"
-#include "gromacs/listed-forces/manage-threading.h"
+#include "gromacs/listed_forces/manage_threading.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -100,8 +99,8 @@
 #include "gromacs/mdlib/update.h"
 #include "gromacs/mdlib/vcm.h"
 #include "gromacs/mdlib/vsite.h"
-#include "gromacs/mdtypes/awh-history.h"
-#include "gromacs/mdtypes/awh-params.h"
+#include "gromacs/mdtypes/awh_history.h"
+#include "gromacs/mdtypes/awh_params.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/mdtypes/df_history.h"
 #include "gromacs/mdtypes/energyhistory.h"
@@ -142,7 +141,6 @@ using gmx::SimulationSignaller;
 void gmx::Integrator::do_mimic()
 {
     t_inputrec              *ir   = inputrec;
-    gmx_mdoutf              *outf = nullptr;
     int64_t                  step, step_rel;
     double                   t, lam0[efptNR];
     bool                     isLastStep               = false;
@@ -151,7 +149,6 @@ void gmx::Integrator::do_mimic()
     tensor                   force_vir, shake_vir, total_vir, pres;
     rvec                     mu_tot;
     gmx_localtop_t           top;
-    t_mdebin                *mdebin   = nullptr;
     gmx_enerdata_t          *enerd;
     PaddedVector<gmx::RVec>  f {};
     gmx_global_stat_t        gstat;
@@ -228,10 +225,12 @@ void gmx::Integrator::do_mimic()
     groups                                   = &top_global->groups;
     top_global->intermolecularExclusionGroup = genQmmmIndices(*top_global);
 
-    /* Initial values */
-    init_rerun(fplog, cr, outputProvider, ir, oenv, mdrunOptions,
-               state_global, lam0, nrnb, top_global,
-               nfile, fnm, &outf, &mdebin, wcycle);
+    initialize_lambdas(fplog, *ir, MASTER(cr), &state_global->fep_state, state_global->lambda, lam0);
+    init_nrnb(nrnb);
+
+    gmx_mdoutf *outf   = init_mdoutf(fplog, nfile, fnm, mdrunOptions, cr, outputProvider, ir, top_global, oenv, wcycle);
+    t_mdebin   *mdebin = init_mdebin(mdrunOptions.continuationOptions.appendFiles ? nullptr : mdoutf_get_fp_ene(outf),
+                                     top_global, ir, mdoutf_get_fp_dhdl(outf), true);
 
     /* Energy terms and groups */
     snew(enerd, 1);
@@ -239,7 +238,7 @@ void gmx::Integrator::do_mimic()
                   enerd);
 
     /* Kinetic energy data */
-    std::unique_ptr<gmx_ekindata_t> eKinData = compat::make_unique<gmx_ekindata_t>();
+    std::unique_ptr<gmx_ekindata_t> eKinData = std::make_unique<gmx_ekindata_t>();
     gmx_ekindata_t                 *ekind    = eKinData.get();
     init_ekindata(fplog, top_global, &(ir->opts), ekind);
     /* Copy the cos acceleration to the groups struct */
@@ -270,7 +269,7 @@ void gmx::Integrator::do_mimic()
     {
         dd_init_local_top(*top_global, &top);
 
-        stateInstance = compat::make_unique<t_state>();
+        stateInstance = std::make_unique<t_state>();
         state         = stateInstance.get();
         dd_init_local_state(cr->dd, state_global, state);
 

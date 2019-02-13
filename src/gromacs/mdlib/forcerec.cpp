@@ -46,27 +46,27 @@
 #include <cstring>
 
 #include <algorithm>
+#include <memory>
 
 #include "gromacs/commandline/filenm.h"
-#include "gromacs/compat/make_unique.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/ewald/ewald.h"
-#include "gromacs/ewald/ewald-utils.h"
+#include "gromacs/ewald/ewald_utils.h"
 #include "gromacs/fileio/filetypes.h"
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/gmxlib/nonbonded/nonbonded.h"
 #include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/hardware/hw_info.h"
-#include "gromacs/listed-forces/gpubonded.h"
-#include "gromacs/listed-forces/manage-threading.h"
-#include "gromacs/listed-forces/pairs.h"
+#include "gromacs/listed_forces/gpubonded.h"
+#include "gromacs/listed_forces/manage_threading.h"
+#include "gromacs/listed_forces/pairs.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
 #include "gromacs/mdlib/force.h"
-#include "gromacs/mdlib/forcerec-threading.h"
+#include "gromacs/mdlib/forcerec_threading.h"
 #include "gromacs/mdlib/gmx_omp_nthreads.h"
 #include "gromacs/mdlib/md_support.h"
 #include "gromacs/mdlib/nb_verlet.h"
@@ -270,8 +270,8 @@ check_solvent_cg(const gmx_moltype_t    *molt,
     gmx_bool              perturbed;
     gmx_bool              has_vdw[4];
     gmx_bool              match;
-    real                  tmp_charge[4]  = { 0.0 }; /* init to zero to make gcc4.8 happy */
-    int                   tmp_vdwtype[4] = { 0 };   /* init to zero to make gcc4.8 happy */
+    real                  tmp_charge[4]  = { 0.0 }; /* init to zero to make gcc 7 happy */
+    int                   tmp_vdwtype[4] = { 0 };   /* init to zero to make gcc 7 happy */
     int                   tjA;
     gmx_bool              qm;
     solvent_parameters_t *solvent_parameters;
@@ -1453,7 +1453,7 @@ static bondedtable_t *make_bonded_tables(FILE *fplog,
                 // being recognized and used for table 1.
                 std::string patternToFind = gmx::formatString("_%s%d.%s", tabext, i, ftp2ext(efXVG));
                 bool        madeTable     = false;
-                for (gmx::index j = 0; j < tabbfnm.size() && !madeTable; ++j)
+                for (gmx::index j = 0; j < tabbfnm.ssize() && !madeTable; ++j)
                 {
                     if (gmx::endsWith(tabbfnm[j], patternToFind))
                     {
@@ -2113,9 +2113,6 @@ static void init_nb_verlet(const gmx::MDLogger     &mdlog,
     nonbonded_verlet_t *nbv;
     char               *env;
 
-    nbnxn_alloc_t      *nb_alloc;
-    nbnxn_free_t       *nb_free;
-
     nbv = new nonbonded_verlet_t();
 
     nbv->emulateGpu = ((getenv("GMX_EMULATE_GPU") != nullptr) ? EmulateGpuNonbonded::Yes : EmulateGpuNonbonded::No);
@@ -2148,25 +2145,21 @@ static void init_nb_verlet(const gmx::MDLogger     &mdlog,
         }
     }
 
-    nbv->listParams = gmx::compat::make_unique<NbnxnListParameters>(ir->rlist);
+    nbv->listParams = std::make_unique<NbnxnListParameters>(ir->rlist);
     setupDynamicPairlistPruning(mdlog, ir, mtop, box, nbv->grp[0].kernel_type, fr->ic,
                                 nbv->listParams.get());
 
-    nbv->nbs = gmx::compat::make_unique<nbnxn_search>(DOMAINDECOMP(cr) ? &cr->dd->nc : nullptr,
-                                                      DOMAINDECOMP(cr) ? domdec_zones(cr->dd) : nullptr,
-                                                      bFEP_NonBonded,
-                                                      gmx_omp_nthreads_get(emntPairsearch));
-
-    gpu_set_host_malloc_and_free(nbv->grp[0].kernel_type == nbnxnk8x8x8_GPU,
-                                 &nb_alloc, &nb_free);
+    nbv->nbs = std::make_unique<nbnxn_search>(DOMAINDECOMP(cr) ? &cr->dd->nc : nullptr,
+                                              DOMAINDECOMP(cr) ? domdec_zones(cr->dd) : nullptr,
+                                              bFEP_NonBonded,
+                                              gmx_omp_nthreads_get(emntPairsearch));
 
     for (int i = 0; i < nbv->ngrp; i++)
     {
         nbnxn_init_pairlist_set(&nbv->grp[i].nbl_lists,
                                 nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
                                 /* 8x8x8 "non-simple" lists are ATM always combined */
-                                !nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type),
-                                nb_alloc, nb_free);
+                                !nbnxn_kernel_pairlist_simple(nbv->grp[i].kernel_type));
     }
 
     int      enbnxninitcombrule;
@@ -2196,7 +2189,7 @@ static void init_nb_verlet(const gmx::MDLogger     &mdlog,
         enbnxninitcombrule = enbnxninitcombruleNONE;
     }
 
-    snew(nbv->nbat, 1);
+    nbv->nbat = new nbnxn_atomdata_t(nbv->bUseGPU ? gmx::PinningPolicy::PinnedIfSupported : gmx::PinningPolicy::CannotBePinned);
     int mimimumNumEnergyGroupNonbonded = ir->opts.ngener;
     if (ir->opts.ngener - ir->nwall == 1)
     {
@@ -2213,8 +2206,7 @@ static void init_nb_verlet(const gmx::MDLogger     &mdlog,
                         enbnxninitcombrule,
                         fr->ntype, fr->nbfp,
                         mimimumNumEnergyGroupNonbonded,
-                        bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1,
-                        nb_alloc, nb_free);
+                        bSimpleList ? gmx_omp_nthreads_get(emntNonbonded) : 1);
 
     if (nbv->bUseGPU)
     {
@@ -2997,11 +2989,6 @@ void init_forcerec(FILE                             *fp,
     /* Initialize neighbor search */
     snew(fr->ns, 1);
     init_ns(fp, cr, fr->ns, fr, mtop);
-
-    if (thisRankHasDuty(cr, DUTY_PP))
-    {
-        gmx_nonbonded_setup(fr, bGenericKernelOnly);
-    }
 
     /* Initialize the thread working data for bonded interactions */
     init_bonded_threading(fp, mtop->groups.grps[egcENER].nr,

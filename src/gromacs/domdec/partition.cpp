@@ -456,7 +456,7 @@ static void restoreAtomGroups(gmx_domdec_t *dd,
     /* Copy back the global charge group indices from state
      * and rebuild the local charge group to atom index.
      */
-    for (gmx::index i = 0; i < atomGroupsState.size(); i++)
+    for (gmx::index i = 0; i < atomGroupsState.ssize(); i++)
     {
         const int atomGroupGlobal  = atomGroupsState[i];
         const int groupSize        = gcgs_index[atomGroupGlobal + 1] - gcgs_index[atomGroupGlobal];
@@ -879,7 +879,7 @@ static void get_load_distribution(gmx_domdec_t *dd, gmx_wallcycle_t wcycle)
 
     for (int d = dd->ndim - 1; d >= 0; d--)
     {
-        const DDCellsizesWithDlb &cellsizes = comm->cellsizesWithDlb[d];
+        const DDCellsizesWithDlb *cellsizes = (isDlbOn(dd->comm) ? &comm->cellsizesWithDlb[d] : nullptr);
         const int                 dim       = dd->dim[d];
         /* Check if we participate in the communication in this dimension */
         if (d == dd->ndim-1 ||
@@ -888,7 +888,7 @@ static void get_load_distribution(gmx_domdec_t *dd, gmx_wallcycle_t wcycle)
             load = &comm->load[d];
             if (isDlbOn(dd->comm))
             {
-                cell_frac = cellsizes.fracUpper - cellsizes.fracLower;
+                cell_frac = cellsizes->fracUpper - cellsizes->fracLower;
             }
             int pos = 0;
             if (d == dd->ndim-1)
@@ -901,8 +901,8 @@ static void get_load_distribution(gmx_domdec_t *dd, gmx_wallcycle_t wcycle)
                     sbuf[pos++] = cell_frac;
                     if (d > 0)
                     {
-                        sbuf[pos++] = cellsizes.fracLowerMax;
-                        sbuf[pos++] = cellsizes.fracUpperMin;
+                        sbuf[pos++] = cellsizes->fracLowerMax;
+                        sbuf[pos++] = cellsizes->fracUpperMin;
                     }
                 }
                 if (bSepPME)
@@ -922,8 +922,8 @@ static void get_load_distribution(gmx_domdec_t *dd, gmx_wallcycle_t wcycle)
                     sbuf[pos++] = comm->load[d+1].flags;
                     if (d > 0)
                     {
-                        sbuf[pos++] = cellsizes.fracLowerMax;
-                        sbuf[pos++] = cellsizes.fracUpperMin;
+                        sbuf[pos++] = cellsizes->fracLowerMax;
+                        sbuf[pos++] = cellsizes->fracUpperMin;
                     }
                 }
                 if (bSepPME)
@@ -948,7 +948,7 @@ static void get_load_distribution(gmx_domdec_t *dd, gmx_wallcycle_t wcycle)
 
                 if (isDlbOn(comm))
                 {
-                    rowMaster = cellsizes.rowMaster.get();
+                    rowMaster = cellsizes->rowMaster.get();
                 }
                 load->sum      = 0;
                 load->max      = 0;
@@ -2112,7 +2112,7 @@ static void setup_dd_communication(gmx_domdec_t *dd,
                     cg0 = cg1 - cd->ind[p-1].nrecv[zone];
                 }
 
-                const int numThreads = static_cast<int>(comm->dth.size());
+                const int numThreads = gmx::ssize(comm->dth);
 #pragma omp parallel for num_threads(numThreads) schedule(static)
                 for (int th = 0; th < numThreads; th++)
                 {
@@ -2632,7 +2632,7 @@ orderVector(gmx::ArrayRef<const gmx_cgsort_t>  sort,
             gmx::ArrayRef<T>                   vectorToSort,
             std::vector<T>                    *workVector)
 {
-    if (gmx::index(workVector->size()) < sort.size())
+    if (gmx::index(workVector->size()) < sort.ssize())
     {
         workVector->resize(sort.size());
     }
@@ -2844,7 +2844,7 @@ static void dd_sort_state(gmx_domdec_t *dd, rvec *cgcm, t_forcerec *fr, t_state 
 
     /* Reorder the state */
     gmx::ArrayRef<const gmx_cgsort_t> cgsort = sort->sorted;
-    GMX_RELEASE_ASSERT(cgsort.size() == dd->ncg_home, "We should sort all the home atom groups");
+    GMX_RELEASE_ASSERT(cgsort.ssize() == dd->ncg_home, "We should sort all the home atom groups");
 
     if (state->flags & (1 << estX))
     {
@@ -2899,7 +2899,7 @@ static void dd_sort_state(gmx_domdec_t *dd, rvec *cgcm, t_forcerec *fr, t_state 
     else
     {
         /* Copy the sorted ns cell indices back to the ns grid struct */
-        for (gmx::index i = 0; i < cgsort.size(); i++)
+        for (gmx::index i = 0; i < cgsort.ssize(); i++)
         {
             fr->ns->grid->cell_index[i] = cgsort[i].nsc;
         }

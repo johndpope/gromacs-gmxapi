@@ -1,7 +1,7 @@
 /*
  * This file is part of the GROMACS molecular simulation package.
  *
- * Copyright (c) 2012,2013,2014,2015,2016,2017,2018, by the GROMACS development team, led by
+ * Copyright (c) 2012,2013,2014,2015,2016,2017,2018,2019, by the GROMACS development team, led by
  * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
  * and including many others, as listed in the AUTHORS file in the
  * top-level source directory and at http://www.gromacs.org.
@@ -41,7 +41,7 @@
 
 #include <algorithm>
 
-#include "gromacs/ewald/ewald-utils.h"
+#include "gromacs/ewald/ewald_utils.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/vec.h"
@@ -655,14 +655,14 @@ static real energyDrift(gmx::ArrayRef<const VerletbufAtomtype> att,
 
     // Here add up the contribution of all atom pairs in the system to
     // (estimated) energy drift by looping over all atom type pairs.
-    for (int i = 0; i < att.size(); i++)
+    for (int i = 0; i < att.ssize(); i++)
     {
         // Get the thermal displacement variance for the i-atom type
         const atom_nonbonded_kinetic_prop_t *prop_i = &att[i].prop;
         real                                 s2i_2d, s2i_3d;
         get_atom_sigma2(kT_fac, prop_i, &s2i_2d, &s2i_3d);
 
-        for (int j = i; j < att.size(); j++)
+        for (int j = i; j < att.ssize(); j++)
         {
             // Get the thermal displacement variance for the j-atom type
             const atom_nonbonded_kinetic_prop_t *prop_j = &att[j].prop;
@@ -847,7 +847,7 @@ static real maxSigma(real                                   kT_fac,
 {
     GMX_ASSERT(!att.empty(), "We should have at least one type");
     real smallestMass = att[0].prop.mass;
-    for (int i = 1; i < att.size(); i++)
+    for (int i = 1; i < att.ssize(); i++)
     {
         smallestMass = std::min(smallestMass, att[i].prop.mass);
     }
@@ -1330,7 +1330,7 @@ chanceOfUpdateGroupCrossingCell(const gmx_mtop_t       &mtop,
                                 real                    kT_fac,
                                 real                    cellSize)
 {
-    GMX_RELEASE_ASSERT(static_cast<size_t>(updateGrouping.size()) == mtop.moltype.size(),
+    GMX_RELEASE_ASSERT(updateGrouping.size() == mtop.moltype.size(),
                        "The update groups should match the topology");
 
     real chance = 0;

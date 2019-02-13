@@ -10,6 +10,7 @@ This work orginated from "Kokkos" and is distributed under the BSD license as
 stated in COPYING.
 
 The following modifications were carried out:
+* Add extensions.h with further mdspan functionality from the GROMACS team
 * reformatted code with uncrustify
 * added GROMACS header to all files
 * added doxygen comments to all files
@@ -23,3 +24,7 @@ The following modifications were carried out:
 * Updated the mdspan test to a typed test
 * added test for basic accessor policy
 * added test for mdspan declaration
+* added sliced_extents to to extents.h to enable compile-time determination of 
+  exents for slice operator, preferred integration into extents_analyse_t over
+  external extension for compilation efficiency
+* added bracket operator [] to basic_mdspan for slicing

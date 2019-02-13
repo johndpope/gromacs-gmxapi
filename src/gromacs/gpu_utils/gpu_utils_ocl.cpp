@@ -276,7 +276,7 @@ static int checkGpu(size_t                   deviceId,
     std::string errorMessage;
     if (!isDeviceSane(deviceInfo, &errorMessage))
     {
-        gmx_warning((formatString("While sanity checking device #%zu, ", deviceId) + errorMessage).c_str());
+        gmx_warning("While sanity checking device #%zu, %s", deviceId, errorMessage.c_str());
         return egpuInsane;
     }
 
@@ -598,22 +598,6 @@ gmx_device_info_t *getDeviceInfo(const gmx_gpu_info_t &gpu_info,
 size_t sizeof_gpu_dev_info()
 {
     return sizeof(gmx_device_info_t);
-}
-
-void gpu_set_host_malloc_and_free(bool               bUseGpuKernels,
-                                  gmx_host_alloc_t **nb_alloc,
-                                  gmx_host_free_t  **nb_free)
-{
-    if (bUseGpuKernels)
-    {
-        *nb_alloc = &pmalloc;
-        *nb_free  = &pfree;
-    }
-    else
-    {
-        *nb_alloc = nullptr;
-        *nb_free  = nullptr;
-    }
 }
 
 int gpu_info_get_stat(const gmx_gpu_info_t &info, int index)

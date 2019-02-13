@@ -54,15 +54,15 @@
 #include <cstring>
 
 #include <algorithm>
+#include <memory>
 
 #include "gromacs/commandline/filenm.h"
-#include "gromacs/compat/make_unique.h"
 #include "gromacs/domdec/domdec.h"
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/domdec/localatomsetmanager.h"
-#include "gromacs/ewald/ewald-utils.h"
+#include "gromacs/ewald/ewald_utils.h"
 #include "gromacs/ewald/pme.h"
-#include "gromacs/ewald/pme-gpu-program.h"
+#include "gromacs/ewald/pme_gpu_program.h"
 #include "gromacs/fileio/checkpoint.h"
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/oenv.h"
@@ -74,9 +74,9 @@
 #include "gromacs/hardware/cpuinfo.h"
 #include "gromacs/hardware/detecthardware.h"
 #include "gromacs/hardware/printhardware.h"
-#include "gromacs/listed-forces/disre.h"
-#include "gromacs/listed-forces/gpubonded.h"
-#include "gromacs/listed-forces/orires.h"
+#include "gromacs/listed_forces/disre.h"
+#include "gromacs/listed_forces/gpubonded.h"
+#include "gromacs/listed_forces/orires.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -169,7 +169,7 @@ Mdrunner Mdrunner::cloneOnSpawnedThread() const
     // part of the interface to the client code, which is associated only with the
     // original thread. Handles to the same resources can be obtained by copy.
     {
-        newRunner.restraintManager_ = compat::make_unique<RestraintManager>(*restraintManager_);
+        newRunner.restraintManager_ = std::make_unique<RestraintManager>(*restraintManager_);
     }
 
     // Copy original cr pointer before master thread can pass the thread barrier
@@ -192,7 +192,7 @@ Mdrunner Mdrunner::cloneOnSpawnedThread() const
     newRunner.replExParams        = replExParams;
     newRunner.pforce              = pforce;
     newRunner.ms                  = ms;
-    newRunner.stopHandlerBuilder_ = compat::make_unique<StopHandlerBuilder>(*stopHandlerBuilder_);
+    newRunner.stopHandlerBuilder_ = std::make_unique<StopHandlerBuilder>(*stopHandlerBuilder_);
 
     threadMpiMdrunnerAccessBarrier();
 
@@ -430,9 +430,9 @@ int Mdrunner::mdrunner()
     gmx_walltime_accounting_t walltime_accounting = nullptr;
     int                       rc;
     int64_t                   reset_counters;
-    int                       nthreads_pme = 1;
-    gmx_membed_t *            membed       = nullptr;
-    gmx_hw_info_t            *hwinfo       = nullptr;
+    int                       nthreads_pme        = 1;
+    gmx_membed_t *            membed              = nullptr;
+    gmx_hw_info_t            *hwinfo              = nullptr;
 
     /* CAUTION: threads may be started later on in this function, so
        cr doesn't reflect the final parallel state right now */
@@ -450,27 +450,14 @@ int Mdrunner::mdrunner()
     std::vector<int>    gpuIdsAvailable;
     try
     {
-        gpuIdsAvailable = parseUserGpuIds(hw_opt.gpuIdsAvailable);
-        // TODO We could put the GPU IDs into a std::map to find
-        // duplicates, but for the small numbers of IDs involved, this
-        // code is simple and fast.
-        for (size_t i = 0; i != gpuIdsAvailable.size(); ++i)
-        {
-            for (size_t j = i+1; j != gpuIdsAvailable.size(); ++j)
-            {
-                if (gpuIdsAvailable[i] == gpuIdsAvailable[j])
-                {
-                    GMX_THROW(InvalidInputError(formatString("The string of available GPU device IDs '%s' may not contain duplicate device IDs", hw_opt.gpuIdsAvailable.c_str())));
-                }
-            }
-        }
+        gpuIdsAvailable = parseUserGpuIdString(hw_opt.gpuIdsAvailable);
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
 
     std::vector<int> userGpuTaskAssignment;
     try
     {
-        userGpuTaskAssignment = parseUserGpuIds(hw_opt.userGpuTaskAssignment);
+        userGpuTaskAssignment = parseUserTaskAssignmentString(hw_opt.userGpuTaskAssignment);
     }
     GMX_CATCH_ALL_AND_EXIT_WITH_FATAL_ERROR;
     auto       nonbondedTarget = findTaskTarget(nbpu_opt);
@@ -552,7 +539,7 @@ int Mdrunner::mdrunner()
     if (SIMMASTER(cr))
     {
         /* Only the master rank has the global state */
-        globalState = compat::make_unique<t_state>();
+        globalState = std::make_unique<t_state>();
 
         /* Read (nearly) all data required for the simulation */
         read_tpx_state(ftp2fn(efTPR, filenames.size(), filenames.data()), inputrec, globalState.get(), &mtop);
@@ -754,7 +741,7 @@ int Mdrunner::mdrunner()
     {
         if (!MASTER(cr))
         {
-            globalState = compat::make_unique<t_state>();
+            globalState = std::make_unique<t_state>();
         }
         broadcastStateWithoutDynamics(cr, globalState.get());
     }
@@ -1689,7 +1676,7 @@ void Mdrunner::BuilderImplementation::addReplicaExchange(const ReplicaExchangePa
 
 void Mdrunner::BuilderImplementation::addMultiSim(gmx_multisim_t* multisim)
 {
-    multisim_ = compat::make_unique<gmx_multisim_t*>(multisim);
+    multisim_ = std::make_unique<gmx_multisim_t*>(multisim);
 }
 
 Mdrunner Mdrunner::BuilderImplementation::build()
@@ -1766,7 +1753,7 @@ Mdrunner Mdrunner::BuilderImplementation::build()
         GMX_THROW(gmx::APIError("MdrunnerBuilder::addBondedTaskAssignment() is required before build()"));
     }
 
-    newRunner.restraintManager_ = compat::make_unique<gmx::RestraintManager>();
+    newRunner.restraintManager_ = std::make_unique<gmx::RestraintManager>();
 
     if (stopHandlerBuilder_)
     {
@@ -1774,7 +1761,7 @@ Mdrunner Mdrunner::BuilderImplementation::build()
     }
     else
     {
-        newRunner.stopHandlerBuilder_ = compat::make_unique<StopHandlerBuilder>();
+        newRunner.stopHandlerBuilder_ = std::make_unique<StopHandlerBuilder>();
     }
 
     return newRunner;
@@ -1823,7 +1810,7 @@ void Mdrunner::BuilderImplementation::addStopHandlerBuilder(std::unique_ptr<Stop
 }
 
 MdrunnerBuilder::MdrunnerBuilder(compat::not_null<SimulationContext*> context) :
-    impl_ {gmx::compat::make_unique<Mdrunner::BuilderImplementation>(context)}
+    impl_ {std::make_unique<Mdrunner::BuilderImplementation>(context)}
 {
 }
 

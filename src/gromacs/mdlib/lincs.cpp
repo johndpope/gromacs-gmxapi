@@ -69,7 +69,7 @@
 #include "gromacs/mdtypes/md_enums.h"
 #include "gromacs/mdtypes/mdatom.h"
 #include "gromacs/pbcutil/pbc.h"
-#include "gromacs/pbcutil/pbc-simd.h"
+#include "gromacs/pbcutil/pbc_simd.h"
 #include "gromacs/simd/simd.h"
 #include "gromacs/simd/simd_math.h"
 #include "gromacs/simd/vector_operations.h"
@@ -1955,7 +1955,7 @@ void set_lincs(const t_idef         &idef,
     li->atoms.resize(numEntries);
     li->blc.resize(numEntries);
     li->blc1.resize(numEntries);
-    li->blnr.resize(numEntries);
+    li->blnr.resize(numEntries + 1);
     li->bllen.resize(numEntries);
     li->tmpv.resizeWithPadding(numEntries);
     if (DOMAINDECOMP(cr))

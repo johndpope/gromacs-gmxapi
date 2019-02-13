@@ -45,9 +45,9 @@
 #include <cstring>
 
 #include <algorithm>
+#include <memory>
 
 #include "gromacs/commandline/filenm.h"
-#include "gromacs/compat/make_unique.h"
 #include "gromacs/domdec/dlbtiming.h"
 #include "gromacs/domdec/domdec_struct.h"
 #include "gromacs/domdec/ga2la.h"
@@ -598,7 +598,7 @@ real add_rot_forces(gmx_enfrot *er,
         gmx_enfrotgrp *erg = &ergRef;
         Vrot += erg->V;  /* add the local parts from the nodes */
         const auto    &localRotationGroupIndex = erg->atomSet->localIndex();
-        for (gmx::index l = 0; l < localRotationGroupIndex.size(); l++)
+        for (gmx::index l = 0; l < localRotationGroupIndex.ssize(); l++)
         {
             /* Get the right index of the local force */
             int ii = localRotationGroupIndex[l];
@@ -1984,7 +1984,7 @@ static real do_flex2_lowlevel(
     const auto &localRotationGroupIndex      = erg->atomSet->localIndex();
     const auto &collectiveRotationGroupIndex = erg->atomSet->collectiveIndex();
 
-    for (gmx::index j = 0; j < localRotationGroupIndex.size(); j++)
+    for (gmx::index j = 0; j < localRotationGroupIndex.ssize(); j++)
     {
         /* Local index of a rotation group atom  */
         ii = localRotationGroupIndex[j];
@@ -2223,7 +2223,7 @@ static real do_flex_lowlevel(
     const auto &localRotationGroupIndex      = erg->atomSet->localIndex();
     const auto &collectiveRotationGroupIndex = erg->atomSet->collectiveIndex();
 
-    for (gmx::index j = 0; j < localRotationGroupIndex.size(); j++)
+    for (gmx::index j = 0; j < localRotationGroupIndex.ssize(); j++)
     {
         /* Local index of a rotation group atom  */
         int ii = localRotationGroupIndex[j];
@@ -2907,7 +2907,7 @@ static void do_radial_motion_pf(
     /* Each process calculates the forces on its local atoms */
     const auto &localRotationGroupIndex      = erg->atomSet->localIndex();
     const auto &collectiveRotationGroupIndex = erg->atomSet->collectiveIndex();
-    for (gmx::index j = 0; j < localRotationGroupIndex.size(); j++)
+    for (gmx::index j = 0; j < localRotationGroupIndex.ssize(); j++)
     {
         /* Local index of a rotation group atom  */
         int ii = localRotationGroupIndex[j];
@@ -3098,7 +3098,7 @@ static void do_radial_motion2(
     /* Each process calculates the forces on its local atoms */
     const auto &localRotationGroupIndex      = erg->atomSet->localIndex();
     const auto &collectiveRotationGroupIndex = erg->atomSet->collectiveIndex();
-    for (gmx::index j = 0; j < localRotationGroupIndex.size(); j++)
+    for (gmx::index j = 0; j < localRotationGroupIndex.ssize(); j++)
     {
         if (bPF)
         {
@@ -3604,7 +3604,7 @@ init_rot(FILE *fplog, t_inputrec *ir, int nfile, const t_filenm fnm[],
         fprintf(stdout, "%s Initializing ...\n", RotStr);
     }
 
-    auto        enforcedRotation = gmx::compat::make_unique<gmx::EnforcedRotation>();
+    auto        enforcedRotation = std::make_unique<gmx::EnforcedRotation>();
     gmx_enfrot *er               = enforcedRotation->getLegacyEnfrot();
     // TODO When this module implements IMdpOptions, the ownership will become more clear.
     er->rot         = ir->rot;
@@ -3667,7 +3667,7 @@ init_rot(FILE *fplog, t_inputrec *ir, int nfile, const t_filenm fnm[],
     {
         gmx_enfrotgrp *erg = &ergRef;
         erg->rotg       = &er->rot->grp[groupIndex];
-        erg->atomSet    = gmx::compat::make_unique<gmx::LocalAtomSet>(atomSets->add({erg->rotg->ind, erg->rotg->ind + erg->rotg->nat}));
+        erg->atomSet    = std::make_unique<gmx::LocalAtomSet>(atomSets->add({erg->rotg->ind, erg->rotg->ind + erg->rotg->nat}));
         erg->groupIndex = groupIndex;
 
         if (nullptr != fplog)
@@ -3758,7 +3758,7 @@ static void choose_pbc_image(rvec x[],
                              matrix box, int npbcdim)
 {
     const auto &localRotationGroupIndex = erg->atomSet->localIndex();
-    for (gmx::index i = 0; i < localRotationGroupIndex.size(); i++)
+    for (gmx::index i = 0; i < localRotationGroupIndex.ssize(); i++)
     {
         /* Index of a rotation group atom  */
         int ii = localRotationGroupIndex[i];
@@ -3835,7 +3835,7 @@ void do_rotation(const t_commrec       *cr,
             if (bNS)
             {
                 const auto &collectiveRotationGroupIndex = erg->atomSet->collectiveIndex();
-                for (gmx::index i = 0; i < collectiveRotationGroupIndex.size(); i++)
+                for (gmx::index i = 0; i < collectiveRotationGroupIndex.ssize(); i++)
                 {
                     /* Index of local atom w.r.t. the collective rotation group */
                     int ii        = collectiveRotationGroupIndex[i];

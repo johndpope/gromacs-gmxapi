@@ -64,20 +64,17 @@ nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu     *nbl,
                      rvec                       *shift_vec,
                      int                         force_flags,
                      int                         clearF,
-                     real  *                     f,
+                     gmx::ArrayRef<real>         f,
                      real  *                     fshift,
                      real  *                     Vc,
                      real  *                     Vvdw)
 {
-    const nbnxn_sci_t  *nbln;
-    const real         *x;
     gmx_bool            bEner;
     gmx_bool            bEwald;
     const real         *Ftab = nullptr;
     real                rcut2, rvdw2, rlist2;
     int                 ntype;
     real                facel;
-    int                 n;
     int                 ish3;
     int                 sci;
     int                 cj4_ind0, cj4_ind1, cj4_ind;
@@ -102,9 +99,6 @@ nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu     *nbl,
     int                 int_bit;
     real                fexcl;
     real                c6, c12;
-    const real       *  shiftvec;
-    real       *        vdwparam;
-    int       *         type;
     const nbnxn_excl_t *excl[2];
 
     int                 npair_tot, npair;
@@ -117,7 +111,7 @@ nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu     *nbl,
 
     if (clearF == enbvClearFYes)
     {
-        clear_f(nbat, 0, f);
+        clear_f(nbat, 0, f.data());
     }
 
     bEner = ((force_flags & GMX_FORCE_ENERGY) != 0);
@@ -128,38 +122,36 @@ nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu     *nbl,
         Ftab = iconst->tabq_coul_F;
     }
 
-    rcut2               = iconst->rcoulomb*iconst->rcoulomb;
-    rvdw2               = iconst->rvdw*iconst->rvdw;
+    rcut2                = iconst->rcoulomb*iconst->rcoulomb;
+    rvdw2                = iconst->rvdw*iconst->rvdw;
 
-    rlist2              = nbl->rlist*nbl->rlist;
+    rlist2               = nbl->rlist*nbl->rlist;
 
-    type                = nbat->type;
-    facel               = iconst->epsfac;
-    shiftvec            = shift_vec[0];
-    vdwparam            = nbat->nbfp;
-    ntype               = nbat->ntype;
+    const int  *type     = nbat->params().type.data();
+    facel                = iconst->epsfac;
+    const real *shiftvec = shift_vec[0];
+    const real *vdwparam = nbat->params().nbfp.data();
+    ntype                = nbat->params().numTypes;
 
-    x = nbat->x;
+    const real *x        = nbat->x().data();
 
     npair_tot   = 0;
     nhwu        = 0;
     nhwu_pruned = 0;
 
-    for (n = 0; n < nbl->nsci; n++)
+    for (const nbnxn_sci_t &nbln : nbl->sci)
     {
-        nbln = &nbl->sci[n];
-
-        ish3             = 3*nbln->shift;
+        ish3             = 3*nbln.shift;
         shX              = shiftvec[ish3];
         shY              = shiftvec[ish3+1];
         shZ              = shiftvec[ish3+2];
-        cj4_ind0         = nbln->cj4_ind_start;
-        cj4_ind1         = nbln->cj4_ind_end;
-        sci              = nbln->sci;
+        cj4_ind0         = nbln.cj4_ind_start;
+        cj4_ind1         = nbln.cj4_ind_end;
+        sci              = nbln.sci;
         vctot            = 0;
         Vvdwtot          = 0;
 
-        if (nbln->shift == CENTRAL &&
+        if (nbln.shift == CENTRAL &&
             nbl->cj4[cj4_ind0].cj[0] == sci*c_numClPerSupercl)
         {
             /* we have the diagonal:
@@ -228,7 +220,7 @@ nbnxn_kernel_gpu_ref(const NbnxnPairlistGpu     *nbl,
                             {
                                 ja               = cj*c_clSize + jc;
 
-                                if (nbln->shift == CENTRAL &&
+                                if (nbln.shift == CENTRAL &&
                                     ci == cj && ja <= ia)
                                 {
                                     continue;

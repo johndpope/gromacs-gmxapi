@@ -44,8 +44,8 @@
 #include <cstring>
 
 #include <algorithm>
+#include <memory>
 
-#include "gromacs/compat/make_unique.h"
 #include "gromacs/math/functions.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/topology/residuetypes.h"
@@ -155,7 +155,7 @@ static int findPropertyIndex(AtomProperty *ap, ResidueType *restype,
 {
     int      j = NOTFOUND;
 
-    bool     bProtein  = restype->namedResidueHasType(residueName.c_str(), "Protein");
+    bool     bProtein  = restype->namedResidueHasType(residueName, "Protein");
     bool     bProtWild = residueName == "AAA";
     int      malen     = NOTFOUND;
     int      mrlen     = NOTFOUND;

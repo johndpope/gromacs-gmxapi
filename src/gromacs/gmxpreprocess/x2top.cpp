@@ -47,14 +47,13 @@
 #include "gromacs/gmxpreprocess/gen_ad.h"
 #include "gromacs/gmxpreprocess/gpp_atomtype.h"
 #include "gromacs/gmxpreprocess/gpp_nextnb.h"
-#include "gromacs/gmxpreprocess/grompp-impl.h"
-#include "gromacs/gmxpreprocess/hackblock.h"
+#include "gromacs/gmxpreprocess/grompp_impl.h"
 #include "gromacs/gmxpreprocess/nm2type.h"
 #include "gromacs/gmxpreprocess/notset.h"
 #include "gromacs/gmxpreprocess/pdb2top.h"
 #include "gromacs/gmxpreprocess/toppush.h"
 #include "gromacs/gmxpreprocess/toputil.h"
-#include "gromacs/listed-forces/bonded.h"
+#include "gromacs/listed_forces/bonded.h"
 #include "gromacs/math/units.h"
 #include "gromacs/math/utilities.h"
 #include "gromacs/math/vec.h"
@@ -68,6 +67,8 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/gmxassert.h"
 #include "gromacs/utility/smalloc.h"
+
+#include "hackblock.h"
 
 #define MARGIN_FAC 1.1
 
@@ -424,7 +425,7 @@ int gmx_x2top(int argc, char *argv[])
     };
 #define NFILE asize(fnm)
     real               kb                            = 4e5, kt = 400, kp = 5;
-    t_restp            rtp_header_settings           = { nullptr };
+    PreprocessResidue  rtp_header_settings;
     bool               bRemoveDihedralIfWithImproper = FALSE;
     bool               bGenerateHH14Interactions     = TRUE;
     bool               bKeepAllGeneratedDihedrals    = FALSE;
@@ -539,7 +540,7 @@ int gmx_x2top(int argc, char *argv[])
     init_nnb(&nnb, atoms->nr, 4);
     gen_nnb(&nnb, plist);
     print_nnb(&nnb, "NNB");
-    gen_pad(&nnb, atoms, &rtp_header_settings, plist, excls, nullptr, TRUE);
+    gen_pad(&nnb, atoms, gmx::arrayRefFromArray(&rtp_header_settings, 1), plist, excls, {}, TRUE);
     done_nnb(&nnb);
 
     if (!bPairs)

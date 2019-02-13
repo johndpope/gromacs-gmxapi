@@ -1,7 +1,7 @@
 # Update an ubuntu image with dependencies needed to build GROMACS and dependent packages.
 # This version of the Dockerfile installs mpich.
 
-# docker build -t gmxapi/gromacs-dependencies:mpich -f gromacs-dependencies.dockerfile ..
+# docker build -t gmxapi/gromacs-dependencies:mpich -f gromacs-dependencies.dockerfile .
 
 # This image serves as a base for integration with the gmxapi Python tools and sample code.
 

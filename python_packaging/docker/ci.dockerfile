@@ -8,7 +8,7 @@
 
 # Optionally, set `--build-arg DOCKER_CORES=N` for a Docker engine running with access to more than 1 CPU.
 #    REF=`git show -s --pretty=format:"%h"`
-#    docker build -t gmxapi/ci:${REF} --build-arg REF=${REF} --build-arg DOCKER_CORES=4 -f ci.dockerfile ..
+#    docker build -t gmxapi/ci:${REF} --build-arg REF=${REF} -f ci.dockerfile ..
 
 
 #
@@ -71,6 +71,7 @@ CMD ["/home/testing/scripts/run_pytest.sh"]
 
 
 # MPI tests can be run in this container without requiring MPI on the host.
+#     docker run --rm -t gmxapi/ci:${REF} /home/testing/scripts/run_pytest_mpi.sh
 # We should also try tests with an MPI-connected set of docker containers.
 
 # To be able to step through with gdb, run with something like the following, replacing

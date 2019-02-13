@@ -37,6 +37,21 @@
 
 import gmxapi as gmx
 
+class Constant(object):
+    """Produce a constant value."""
+
+class LogicalIdentity(object):
+    """Copy the boolean value from input to output."""
+
+class LogicalNot(object):
+    """Negate the input value to the output."""
+
+class LogicalAnd(object):
+    """Gather a list of boolean inputs and produce their logical AND on the output."""
+
+class LogicalOr(object):
+    """Gather a list of boolean inputs and produce their logical OR on the output."""
+
 class NoOp(object):
     """Implement a trivial Operation.
 
@@ -53,14 +68,14 @@ class CountedOp(object):
     def count(self):
         return CountedOp._count
 
-class AppendToString(object):
-    """Operation that builds output by concatenating a string to the input."""
-    def __init__(self, data=None, new_text=None):
-        self.data = str(data) + str(new_text)
+@computed_result
+def append(original_text=None, new_text=None):
+    """Operation that builds output by concatenating a string to the input.
 
-    def data(self):
-        return self.data
+    The helper function creates an additional operation to provide the inputs
+    as Constants, as appropriate.
+    """
+    return str(original_text) + str(new_text)
 
 noop = gmx.operation.make_operation(NoOp, input=[], output=[])
 count = gmx.operation.make_operation(CountedOp, input=[], output=[])
-append = gmx.operation.make_operation(AppendToString, input=['data', 'new_text'], output=['data'])

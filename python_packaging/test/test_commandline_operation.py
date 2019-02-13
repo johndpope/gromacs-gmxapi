@@ -39,10 +39,17 @@ gmxapi.commandline_operation() provides additional logic over gmxapi.make_operat
 to conveniently wrap command line tools.
 """
 
+import os
+import pytest
+import tempfile
 import unittest
+
 from gmxapi.commandline import cli_function as commandline_operation
 
-class CommandLineOperationTestCase(unittest.TestCase):
+# Decorator to mark tests that are expected to fail
+xfail = pytest.mark.xfail
+
+class CommandLineOperationSimpleTestCase(unittest.TestCase):
     """Test creation and execution of command line wrapper."""
     def test_true(self):
         operation = commandline_operation(executable='true')
@@ -52,6 +59,9 @@ class CommandLineOperationTestCase(unittest.TestCase):
         # assert not 'stderr' in operation.output
         assert not hasattr(operation.output, 'stdout')
         assert not hasattr(operation.output, 'stderr')
+        assert hasattr(operation.output, 'file')
+        assert hasattr(operation.output, 'erroroutput')
+        assert hasattr(operation.output, 'returncode')
         operation.run()
         # assert operation.output.returncode.result() == 0
         assert operation.output.returncode == 0
@@ -66,3 +76,46 @@ class CommandLineOperationTestCase(unittest.TestCase):
         operation = commandline_operation(executable='echo', arguments=['hi there'])
         operation.run()
         assert operation.output.returncode == 0
+
+class CommandLineOperationPipelineTestCase(unittest.TestCase):
+    """Test dependent sequence of operations."""
+    @xfail
+    def test_operation_dependence(self):
+        """Confirm that dependent operations are only executed after their dependencies.
+
+        In a sequence of two operations, write a two-line file one line at a time.
+        Use a user-provided filename as a parameter to each operation.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            fh, filename = tempfile.mkstemp(dir=directory)
+            os.close(fh)
+            line1 = 'first line'
+            line2 = 'second line'
+            commandline1 = ['-c', 'echo', '"{}"'.format(line1), '>>', filename]
+            commandline2 = ['-c', 'echo', '"{}"'.format(line2), '>>', filename]
+            filewriter1 = commandline_operation('bash', arguments=commandline1)
+            filewriter2 = commandline_operation('bash', arguments=commandline2, input=filewriter1.output)
+            filewriter2.run()
+            # Check that the file has the two expected lines
+            with open(filename, 'r') as fh:
+                lines = [text.rstrip() for text in fh]
+            assert len(lines) == 2
+            assert lines[0] == line1
+            assert lines[1] == line2
+
+    @xfail
+    def test_data_dependence(self):
+        """Confirm that data dependencies correctly establish resolvable execution dependencies.
+
+        In a sequence of two operations, write a two-line file one line at a time.
+        Use the output of one operation as the input of another.
+        """
+        assert True
+    @xfail
+    def test_parallel_data_dependence(self):
+        """As in test_data_dependence, but with two independent data flows."""
+        assert True
+    @xfail
+    def test_broadcast_data_dependence(self):
+        """As in test_data_dependence, but with one operation feeding two independent consumers."""
+        assert True

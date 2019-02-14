@@ -247,7 +247,8 @@ def filemap_to_flag_list(filemap=None):
     return flag_list
 
 # TODO: Use generating function or decorator that can validate kwargs.
-def commandline_operation(executable=None, arguments=None, input_files=None, output_files=None, label=None, context=None):
+@function_wrapper(output=['file', 'erroroutput', 'returncode'])
+def commandline_operation(executable=None, arguments=None, input_files=None, output_files=None, output=None):
     """Helper function to execute a subprocess in gmxapi data flow.
 
     Generate a chain of operations to process the named key word arguments and handle
@@ -276,4 +277,8 @@ def commandline_operation(executable=None, arguments=None, input_files=None, out
                                  filemap_to_flag_list(input_files),
                                  filemap_to_flag_list(output_files))).result()
     shell = make_constant(False)
-    return cli(command=command, shell=shell.result())
+    wrapped_op = cli(command=command, shell=shell.result())
+    wrapped_op.run()
+    output.file = wrapped_op.output.file
+    output.erroroutput = wrapped_op.output.erroroutput
+    output.returncode = wrapped_op.output.returncode

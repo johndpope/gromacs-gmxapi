@@ -374,6 +374,7 @@ def function_wrapper(output=()):
 
     output_names = list([name for name in output])
     def decorator(function):
+        # TODO: add additional allowed arguments to signature.
         @functools.wraps(function)
         def new_helper(*args, **kwargs):
 
@@ -381,6 +382,7 @@ def function_wrapper(output=()):
             # The gmxapi Python package provides context implementations with ensemble management.
             # A simple operation should be able to easily get an OutputResource generator and/or
             # provide a module-specific implementation.
+            # TODO: Dictionary-like assignment seems like a reasonable feature to add.
             class OutputResource(object):
                 __slots__ = output_names
 
@@ -399,7 +401,7 @@ def function_wrapper(output=()):
             class DataProxyMeta(type):
                 def __new__(mcs, name, bases, class_dict):
                     for attr in output_names:
-                        # TODO: Replace None with an appropriate (read-only) descriptor
+                        # TODO: Replace None with an appropriate (read-only) Result descriptor
                         class_dict[attr] = None
                     cls = type.__new__(mcs, name, bases, class_dict)
                     return cls
@@ -426,6 +428,7 @@ def function_wrapper(output=()):
                     # TODO: generate these as types at class level, not as instances at instance level
                     output_publishing_resource = OutputResource()
                     output_data_proxy = OutputDataProxy()
+                    # TODO: output_data_proxy needs to have Result attributes now, not just after run.
                     for accessor in self._output_names:
                         setattr(output_publishing_resource, accessor, None)
                         setattr(output_data_proxy, accessor, None)
@@ -435,6 +438,25 @@ def function_wrapper(output=()):
                     self._output = output_data_proxy
                     self.input_args = tuple(args)
                     self.input_kwargs = {key: value for key, value in kwargs.items()}
+                    # TODO: generalize
+                    self.dependencies = []
+
+                    # If present, kwargs['input'] is treated as an input "pack" providing _default_ values.
+                    if 'input' in self.input_kwargs:
+                        provided_input = self.input_kwargs.pop('input')
+                        if provided_input is not None:
+                            assert not 'input' in self.input_kwargs
+                            # Try to determine what 'input' is.
+                            # TODO: handling should be related to Context...
+                            if hasattr(provided_input, 'run'):
+                                self.dependencies.append(provided_input)
+                            else:
+                                # Assume a parameter pack is provided.
+                                for key, value in provided_input.items():
+                                    if key not in self.input_kwargs:
+                                        self.input_kwargs[key] = value
+                            assert not 'input' in self.input_kwargs
+                    assert not 'input' in self.input_kwargs
 
                 @property
                 def output(self):
@@ -443,7 +465,22 @@ def function_wrapper(output=()):
                 def run(self):
                     # TODO: take action only if outputs are not already done.
                     # TODO: make sure this gets run if outputs need to be satisfied for `result()`
-                    function(*self.input_args, output=self._resources.output, **self.input_kwargs)
+                    args = []
+                    for arg in self.input_args:
+                        # TODO: be more rigorous...
+                        if hasattr(arg, 'result'):
+                            args.append(arg.result())
+                        else:
+                            args.append(arg)
+                    kwargs = {}
+                    for key, value in self.input_kwargs.items():
+                        if hasattr(value, 'result'):
+                            kwargs[key] = value.result()
+                        else:
+                            kwargs[key] = value
+
+                    assert not 'input' in kwargs
+                    function(*args, output=self._resources.output, **kwargs)
                     # TODO: Add publishing infrastructure to connect output resources to published output.
                     for name in output_names:
                         setattr(self._output, name, getattr(self._resources.output, name))

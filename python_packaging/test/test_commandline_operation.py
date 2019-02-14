@@ -86,7 +86,6 @@ class CommandLineOperationPipelineTestCase(unittest.TestCase):
         In a sequence of two operations, write a two-line file one line at a time.
         Use a user-provided filename as a parameter to each operation.
         """
-        return
         with tempfile.TemporaryDirectory() as directory:
             fh, filename = tempfile.mkstemp(dir=directory)
             os.close(fh)
@@ -95,7 +94,7 @@ class CommandLineOperationPipelineTestCase(unittest.TestCase):
             commandline1 = ['-c', 'echo', '"{}"'.format(line1), '>>', filename]
             commandline2 = ['-c', 'echo', '"{}"'.format(line2), '>>', filename]
             filewriter1 = commandline_operation('bash', arguments=commandline1)
-            filewriter2 = commandline_operation('bash', arguments=commandline2, input=filewriter1.output)
+            filewriter2 = commandline_operation('bash', arguments=commandline2, input=filewriter1.output.file)
             filewriter2.run()
             # Check that the file has the two expected lines
             with open(filename, 'r') as fh:

@@ -349,8 +349,8 @@ def make_constant(value):
 def function_wrapper(output=()):
     """Generate a decorator for wrapped functions with signature manipulation.
 
-    New function accepts the same arguments except for 'output', which is a data structure
-    generated according to `output` in `function_wrapper`.
+    New function accepts the same arguments, with additional arguments required by
+    the API.
 
     The new function returns an object with an `output` attribute containing the named outputs.
 
@@ -364,6 +364,13 @@ def function_wrapper(output=()):
         assert operation1.output.spam.result() == 'spam spam'
         assert operation1.output.foo.result() == 'spam spam spam spam'
     """
+    # TODO: more flexibility?
+    #     If 'output' is provided to the wrapper, a data structure will be passed to
+    #     the wrapped functions with the named attributes so that the function can easily
+    #     publish multiple named results. Otherwise, the `output` of the generated operation
+    #     will just capture the return value of the wrapped function.
+    # For now, this behavior is obtained with @computed_result
+
     # TODO: gmxapi operations need to allow a context-dependent way to generate an implementation with input.
     # This function wrapper reproduces the wrapped function's kwargs, but does not allow chaining a
     # dynamic `input` kwarg and does not dispatch according to a `context` kwarg. We should allow
@@ -462,9 +469,12 @@ def function_wrapper(output=()):
                 def output(self):
                     return self._output
 
+                # TODO: This should be composed with help from the Context implementation.
                 def run(self):
                     # TODO: take action only if outputs are not already done.
                     # TODO: make sure this gets run if outputs need to be satisfied for `result()`
+                    for dependency in self.dependencies:
+                        dependency.run()
                     args = []
                     for arg in self.input_args:
                         # TODO: be more rigorous...

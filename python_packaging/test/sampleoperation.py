@@ -36,9 +36,7 @@
 """gmxapi extension module with mock user code for gmxapi testing."""
 
 import gmxapi as gmx
-
-class Constant(object):
-    """Produce a constant value."""
+from gmxapi.operation import computed_result
 
 class LogicalIdentity(object):
     """Copy the boolean value from input to output."""
@@ -52,22 +50,6 @@ class LogicalAnd(object):
 class LogicalOr(object):
     """Gather a list of boolean inputs and produce their logical OR on the output."""
 
-class NoOp(object):
-    """Implement a trivial Operation.
-
-    No input, output, or side-effects (no-op).
-    """
-
-class CountedOp(object):
-    """Trivial Operation that can report the number of times called."""
-    _count = 0
-    def __init__(self):
-        """Initialize and increment the module global counter, stored in the Class."""
-        CountedOp._count += 1
-
-    def count(self):
-        return CountedOp._count
-
 @computed_result
 def append(original_text=None, new_text=None):
     """Operation that builds output by concatenating a string to the input.
@@ -76,6 +58,3 @@ def append(original_text=None, new_text=None):
     as Constants, as appropriate.
     """
     return str(original_text) + str(new_text)
-
-noop = gmx.operation.make_operation(NoOp, input=[], output=[])
-count = gmx.operation.make_operation(CountedOp, input=[], output=[])

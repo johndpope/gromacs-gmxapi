@@ -135,6 +135,13 @@ from gmxapi import util
 logger = logging.getLogger(__name__)
 logger.info('Importing gmxapi._commandline_operation')
 
+#
+# Replace cli() with a wrapping function that
+#    * strips the `output` argument from the signature
+#    * provides `output` to the inner function and
+#    * returns the output object when called with the shorter signature.
+#
+@function_wrapper(output=['file', 'erroroutput', 'returncode'])
 def cli(command=None, shell=None, output=None):
     """Execute a command line program in a subprocess.
 
@@ -228,15 +235,6 @@ def cli(command=None, shell=None, output=None):
     output.erroroutput = erroroutput
     output.returncode = returncode
 
-# Replace cli() with a wrapping function that
-#    * strips the `output` argument from the signature
-#    * provides `output` to the inner function and
-#    * returns the output object when called with the shorter signature.
-#
-# Note: could be done as a decorator instead at the cli() definition.
-#
-cli = function_wrapper(output=['file', 'erroroutput', 'returncode'])(cli)
-
 # This doesn't even need to be a separate operation. It can just generate the necessary data flow.
 def filemap_to_flag_list(filemap=None):
     flag_list = []
@@ -247,8 +245,15 @@ def filemap_to_flag_list(filemap=None):
     return flag_list
 
 # TODO: Use generating function or decorator that can validate kwargs.
-@function_wrapper(output=['file', 'erroroutput', 'returncode'])
-def commandline_operation(executable=None, arguments=None, input_files=None, output_files=None, output=None):
+# TODO: Outputs need to be fully formed and typed in the object returned from the helper (decorated function).
+# Question: Should the implementing function be able to modify the work graph?
+# Or should we have a restriction that implementation functions cannot call operations, and
+# have more separation between the definition of the helper function and the definition of the implementation,
+# allowing only helper functions to add to the work graph?
+# At the moment, we don't have a way to prevent acquisition of new operation handles in runtime implementation functions,
+# but we can discourage it for the moment and in the future we can check the current Context whenever getting a new operation
+# handle to decide if it is allowed. Such a check could only be performed after the work is launched, of course.
+def commandline_operation(executable=None, arguments=None, input_files=None, output_files=None, **kwargs):
     """Helper function to execute a subprocess in gmxapi data flow.
 
     Generate a chain of operations to process the named key word arguments and handle
@@ -275,10 +280,9 @@ def commandline_operation(executable=None, arguments=None, input_files=None, out
     command = concatenate_lists((executable,
                                  arguments,
                                  filemap_to_flag_list(input_files),
-                                 filemap_to_flag_list(output_files))).result()
+                                 filemap_to_flag_list(output_files)))
     shell = make_constant(False)
-    wrapped_op = cli(command=command, shell=shell.result())
-    wrapped_op.run()
-    output.file = wrapped_op.output.file
-    output.erroroutput = wrapped_op.output.erroroutput
-    output.returncode = wrapped_op.output.returncode
+    cli_args = {'command': command,
+                'shell': shell}
+    cli_args.update(kwargs)
+    return cli(**cli_args)

@@ -89,8 +89,7 @@ def which(command):
     Ref: https://stackoverflow.com/questions/377017/test-if-executable-exists-in-python
     """
     try:
-        # TODO: we might want an abstraction of character encoding for filesystem and argv / shell strings
-        command_path = to_utf8(command)
+        command_path = os.fsencode(command)
     except:
         raise exceptions.ValueError("Argument must be representable on the command line.")
     if os.path.exists(command_path):

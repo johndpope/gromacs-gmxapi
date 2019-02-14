@@ -1,7 +1,0 @@
-This directory segregates the Dockerfiles to avoid clutter.
-
-This slightly complicates usage, though. Docker images should be built in the
-context of the parent directory (or whatever is noted in the comments of the
-Dockerfile). E.g.
-
-    docker build -f docker/gromacs-dependencies.dockerfile .

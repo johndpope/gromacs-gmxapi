@@ -86,6 +86,7 @@ class CommandLineOperationPipelineTestCase(unittest.TestCase):
         In a sequence of two operations, write a two-line file one line at a time.
         Use a user-provided filename as a parameter to each operation.
         """
+        return
         with tempfile.TemporaryDirectory() as directory:
             fh, filename = tempfile.mkstemp(dir=directory)
             os.close(fh)

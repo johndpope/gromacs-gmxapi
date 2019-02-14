@@ -53,6 +53,9 @@ RUN . $HOME/testing/bin/activate && \
     pip install -r /home/testing/requirements.txt
 
 ADD --chown=testing:testing gmxapi /home/testing/gmxapi
+ADD --chown=testing:testing gmxapi/test /home/testing/gmxapi/test
+ADD --chown=testing:testing gmxapi/src/gmxapi /home/testing/gmxapi/src/gmxapi
+ADD --chown=testing:testing gmxapi/src/gmxapi/_cli /home/testing/gmxapi/src/gmxapi/_cli
 
 RUN . $HOME/testing/bin/activate && \
     . /usr/local/gromacs/bin/GMXRC && \
@@ -62,6 +65,7 @@ RUN . $HOME/testing/bin/activate && \
 
 ADD --chown=testing:testing acceptance /home/testing/acceptance
 ADD --chown=testing:testing scripts /home/testing/scripts
+ADD --chown=testing:testing test /home/testing/test
 
 # TODO: this can be in the root user section above once it is stable
 COPY scripts/entrypoint.sh /

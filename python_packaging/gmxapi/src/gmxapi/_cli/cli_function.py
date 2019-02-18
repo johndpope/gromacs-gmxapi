@@ -141,7 +141,7 @@ logger.info('Importing gmxapi._commandline_operation')
 #    * provides `output` to the inner function and
 #    * returns the output object when called with the shorter signature.
 #
-@function_wrapper(output=['file', 'erroroutput', 'returncode'])
+@function_wrapper(output={'file': dict, 'erroroutput': str, 'returncode': int})
 def cli(command=None, shell=None, output=None):
     """Execute a command line program in a subprocess.
 

@@ -61,26 +61,6 @@ import inspect
 
 import gmxapi.exceptions
 
-class NamedResult(object):
-    """Descriptor class for Result behavior on attributes.
-
-    Stores actual data in the owning object, but ensures that the object
-    accessed through the named port has the expected behavior.
-    """
-    def __init__(self, implementation, input):
-        # The name of the public attribute in the owning class.
-        self.name = None
-        # The name of the private attribute in the owning class.
-        self.internal_name = None
-        self.implementation = Result(implementation, input)
-
-    def __get__(self, instance, instance_type):
-        # Note: `self` is the object providing an attribute accessor for an
-        # `instance` of the class `instance_type`
-        # (`instance` is None if attribute is accessed through the owning class).
-        if instance is None: return self.implementation
-        return self.implementation
-
 # class Resource(object):
 #     """Named, typed reference to a managed resource.
 #
@@ -106,6 +86,47 @@ class NamedResult(object):
 #         * final
 #     """
 
+class Publisher(object):
+    """Descriptor for named data destinations."""
+    # TODO: this should be an implementation detail of the SessionResources
+    #       provided by the running Session.
+    def __init__(self, dtype):
+        self.dtype = dtype
+        self.name = None
+        self.internal_name = None
+    def __get__(self, instance, instance_type):
+        if instance is None: return self
+        return getattr(instance, self.internal_name, None)
+    def __set__(self, instance, value):
+        """Publish value to the managed resource."""
+        setattr(instance, self.internal_name, value)
+
+class PublisherCollection(object):
+    """Descriptor for a collection of Publishers.
+
+    Compartmentalizes multiple named data destinations as attributes
+    of the collection.
+
+    A Resource class may have an instance of PublisherCollection as
+    its `output` attribute.
+    """
+    def __init__(self): pass
+    def __get__(self, instance, instance_type):
+        if instance is None:
+            # None means class attribute requested instead of instance attribute.
+            return self
+        publisher_manager = instance.get_publisher_collection()
+        return publisher_manager
+
+class ResourceMeta(type):
+    """Validate and finalize a Resource manager.
+
+    The manager must have an 'input' and 'output' attribute.
+
+    The 'output' attribute is either a typed Publisher or an
+    """
+    def __new__(meta, name, bases, class_dict):
+
 # TODO: let Output be a Result, optionally containing a structure of Results
 class AbstractResult(abc.ABC):
     """A Result serves as a proxy to or "future" for data produced by gmxapi operations.
@@ -116,6 +137,9 @@ class AbstractResult(abc.ABC):
     of data dependencies, triggering any necessary computation and communication, to return
     an object of the data type represented by the Result. If the Result is a container for other
     Results, nested Results are also resolved to local concrete data.
+
+    Classes that provide named Results use a ResultDescriptor that provides a getter that returns
+    an object with the Result interface.
     """
 
     # TODO: A Result should defer implementation details to the Context or parent operation.
@@ -174,14 +198,14 @@ class AbstractResult(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def dtype(self):
+    def dtype(self) -> type:
         """Base data type of the result.
 
         Used to determine compatibility with the mapped inputs of consuming operations.
         """
         # At any point in time, the resource represented by this result may be in some abstract state
         # and may by an array of data sources that will be scattered to consumers.
-        return None
+        return type(None)
 
     def _subscribe(self, subscriber):
         """Register interest in being provided with the result data when it is available.
@@ -198,6 +222,21 @@ class AbstractResult(abc.ABC):
         director = None
         return director
 
+class ValidateResult(type):
+    """Metaclass for validating the Result interface.
+
+    Alternative to inheriting from AbstractResult.
+    """
+    def __new__(meta, name, bases, class_dict):
+        if not 'result' in class_dict or not callable(class_dict['result']):
+            message = "{} does not provide a callable 'result' attribute, required by the Result interface.".format(name)
+            raise gmxapi.exceptions.ApiError(message)
+        if not 'dtype' in class_dict or not isinstance(class_dict['dtype'], type):
+            message = "{} does not provide a 'dtype' attribute, required by the Result interface.".format(name)
+            raise gmxapi.exceptions.ApiError(message)
+        cls = type.__new__(meta, name, bases, class_dict)
+        return cls
+
 # Result scenarios:
 # In (rough) order of increasing complexity:
 # * stateless and reproducible locally: calculate when needed
@@ -211,6 +250,36 @@ class AbstractResult(abc.ABC):
 #    that the surrounding code is blocked on the request.
 # Note that in case (1), the holder of the handle may not use the facility, especially if it will
 # be using (2).
+
+
+class NamedResult(object):
+    """Descriptor class for Result behavior on attributes.
+
+    Stores actual data in the owning object, but ensures that the object
+    accessed through the named port has the expected behavior.
+
+    Assigning a class attribute to a NamedResult instance allows a class to have partially defined
+    properties that are processed by a metaclass or enclosing function (or class decorator) before
+    the class definition is available to client code.
+
+    The fully-defined property needs to be able to return a Result object, appropriate for the current
+    Context, that knows what input it depends on, how to uniquely identify itself, and how to allow
+    itself to be copied or transfered to a different context.
+    """
+    def __init__(self, dtype=None):
+        # The name of the public attribute in the owning class.
+        self.name = None
+        # The name of the private attribute in the owning class.
+        self.internal_name = None
+        self.implementation = Result(implementation, input)
+
+    def __get__(self, instance, instance_type):
+        # Note: `self` is the object providing an attribute accessor for an
+        # `instance` of the class `instance_type`
+        # (`instance` is None if attribute is accessed through the owning class).
+        if instance is None: return self.implementation
+        return self.implementation
+
 
 # TODO: This class can be removed for tidiness when more sophisticated classes are avialable.
 # E.g. caching Results, ensemble-safe results.
@@ -241,7 +310,7 @@ class CachingResult(AbstractResult):
     """
 
     def __init__(self, implementation, input):
-        """`implementation` is idempotent and may be called repeatedly without (additional) side effects."""
+        """`implementation` should be callable repeatedly without (additional) side effects."""
         self.__implementation = implementation
         self.__input = input
         self.__cached_value = None
@@ -346,16 +415,17 @@ def make_constant(value):
     return type(value)(value)
 
 
-def function_wrapper(output=()):
+def function_wrapper(output=None):
     """Generate a decorator for wrapped functions with signature manipulation.
 
     New function accepts the same arguments, with additional arguments required by
     the API.
 
-    The new function returns an object with an `output` attribute containing the named outputs.
+    The new function returns an object with an `output` attribute containing the named Results.
+    `output` should be a dictionary of result names and types.
 
     Example:
-        @function_wrapper(output=['spam', 'foo'])
+        @function_wrapper(output={'spam': str, 'foo': str})
         def myfunc(parameter=None, output=None):
             output.spam = parameter
             output.foo = parameter + ' ' + parameter
@@ -364,7 +434,7 @@ def function_wrapper(output=()):
         assert operation1.output.spam.result() == 'spam spam'
         assert operation1.output.foo.result() == 'spam spam spam spam'
     """
-    # TODO: more flexibility?
+    # TODO: more flexibility to capture return value by default?
     #     If 'output' is provided to the wrapper, a data structure will be passed to
     #     the wrapped functions with the named attributes so that the function can easily
     #     publish multiple named results. Otherwise, the `output` of the generated operation
@@ -380,8 +450,14 @@ def function_wrapper(output=()):
     # that a named argument)
 
     output_names = list([name for name in output])
+#    output_descriptor = # define the class implementing the described output attribute.
+    if len(output) == 0:
+        output_descriptor = None
+    else:
+        output_descriptor = {name: NamedResult(dtype) for name, dtype in output.items()}
+
     def decorator(function):
-        # TODO: add additional allowed arguments to signature.
+        # TODO: add additional allowed arguments to signature ('input', 'label', 'context').
         @functools.wraps(function)
         def new_helper(*args, **kwargs):
 
@@ -423,30 +499,50 @@ def function_wrapper(output=()):
 
             class Resources(object):
                 # TODO: should be an implementation detail of the Context, valid only during session lifetime.
-                __slots__ = ['output']
+                output = PublisherCollection()
 
+            def ResourceManager():
+                """Define a specific resource management interface.
+
+                Methods:
+                    get_results_proxy
+                """
+                if output_descriptor is None:
+
+
+            # TODO: Do we need a nested class definition when new_function() and Operation()
+            #       do the same thing? Or should the decorator just return the new type directly?
+            # With the nesting, we retain the ability to further customize Operation before the
+            # new_helper() function returns....
             class Operation(object):
+                """Dynamically defined Operation supporting specified inputs and outputs.
+
+                Class defined at run time by helper functions to implement functionality
+                specified in the calling code.
+                """
+                # TODO: The docstring for the operation should describe the available outputs and inputs.
+
                 @property
                 def _output_names(self):
                     return [name for name in output_names]
 
+                @property
+                def output(self):
+                    # Note: if we define Operation classes exclusively in the scope of Context instances,
+                    # we could elegantly have a single _resource_manager handle instance per Operation type
+                    # per Context instance, but I don't know what purpose that would serve right now, so
+                    # I'm assuming one resource manager handle instance per Operation handle instance.
+                    return self._resource_manager.results_proxy
+
                 def __init__(self, *args, **kwargs):
-                    ##
-                    # TODO: generate these as types at class level, not as instances at instance level
-                    output_publishing_resource = OutputResource()
-                    output_data_proxy = OutputDataProxy()
-                    # TODO: output_data_proxy needs to have Result attributes now, not just after run.
-                    for accessor in self._output_names:
-                        setattr(output_publishing_resource, accessor, None)
-                        setattr(output_data_proxy, accessor, None)
-                    ##
-                    self._resources = Resources()
-                    self._resources.output = output_publishing_resource
-                    self._output = output_data_proxy
+                    # TODO: By the time initialization finishes, the results proxy should be
+                    #       able to uniquely associate its outputs with these inputs.
                     self.input_args = tuple(args)
                     self.input_kwargs = {key: value for key, value in kwargs.items()}
-                    # TODO: generalize
+                    # TODO: generalize as a facility in the Context.
                     self.dependencies = []
+
+                    self._resource_manager = ResourceManager()
 
                     # If present, kwargs['input'] is treated as an input "pack" providing _default_ values.
                     if 'input' in self.input_kwargs:
@@ -465,12 +561,31 @@ def function_wrapper(output=()):
                             assert not 'input' in self.input_kwargs
                     assert not 'input' in self.input_kwargs
 
-                @property
-                def output(self):
-                    return self._output
-
                 # TODO: This should be composed with help from the Context implementation.
                 def run(self):
+                    """Make a single attempt to resolve data flow conditions.
+
+                    This is a public method, but should not need to be called by users. Instead,
+                    just use the `output` data proxy for result handles, or force data flow to be
+                    resolved with the `result` methods on the result handles.
+
+                    `run()` may be useful to try to trigger computation (such as for remotely
+                    dispatched work) without retrieving results locally right away.
+
+                    `run()` is also useful internally as a facade to the Context implementation details
+                    that allow `result()` calls to ask for their data dependencies to be resolved.
+                    Typically, `run()` will cause results to be published to subscribing operations as
+                    they are calculated, so the `run()` hook allows execution dependency to be slightly
+                    decoupled from data dependency, as well as to allow some optimizations or to allow
+                    data flow to be resolved opportunistically. `result()` should not call `run()`
+                    directly, but should cause the resource manager / Context implementation to process
+                    the data flow graph.
+
+                    In one conception, `run()` can have a return value that supports control flow
+                    by itself being either runnable or not. The idea would be to support
+                    fault tolerance, implementations that require multiple iterations / triggers
+                    to complete, or looping operations.
+                    """
                     # TODO: take action only if outputs are not already done.
                     # TODO: make sure this gets run if outputs need to be satisfied for `result()`
                     for dependency in self.dependencies:

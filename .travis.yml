@@ -1,0 +1,61 @@
+# Recipe for build and integration testing on Travis-CI
+
+# Try beta version of new travis-yml checker
+version: "= 0"
+# For extra debugging of failed jobs, see
+# https://docs.travis-ci.com/user/common-build-problems/#Troubleshooting-Locally-in-a-Docker-Image
+
+sudo: true
+dist: xenial
+os: linux
+language: cpp
+
+compiler: gcc
+
+
+
+#env:
+## Python 2.7 and 3.6 are the only generations provided by pyenv on Travis-CI out-of-the-box
+#  - CI_MPI=0 GCC=5 PY=3.6
+#  - CI_MPI=0 GCC=7 PY=3.6
+#  - CI_MPI=1 GCC=7 PY=3.6
+#  - CI_MPI=1 GCC=5 PY=3.6
+
+# For tag for GROMACS docker image, use
+#    git show -s --pretty=format:"%h" `git merge-base gerrit_master kassonLabFork`
+
+# Set up for all jobs
+#before_install:
+#  - ...
+#install:
+#  - ...
+#before_script:
+#  - ...
+
+# We want Travis-CI to be able to push updated docker images for gromacs-dependencies, gromacs, and ci,
+# but not to allow these to be triggered by PRs from other users. Travis-CI provides some security in
+# this regard, but need to check...
+
+jobs:
+  include:
+    # Build and push gmxapi/gromacs-dependencies-<matrix>:<tag> on kassonLabFork branch if the tag does not exist yet.
+    - stage: build base image
+      script:
+      - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+      - docker pull gmxapi/gromacs-dependencies-mpich
+      - cd python_packaging/docker && docker build -t gmxapi/gromacs-dependencies-mpich .
+      - docker images
+      deploy:
+      - docker push gmxapi/gromacs-dependencies-mpich
+
+    # Build and push gmxapi/gromacs-<matrix>:<tag> on kassonLabFork branch if the tag does not exist
+    - stage: build GROMACS
+      script: docker build -t gmxapi/gromacs-mpich:$(git show -s --pretty=format:"%h" `git merge-base gerrit_master kassonLabFork`)
+    # Build and push gmxapi/ci-<matrix>:fr1
+    - stage: Feature Request 1
+    # What is the difference between the after-script and deploy steps?
+
+# At some point, we should test more types of interactions between components, such as both static and dynamically
+# linked builds, and components built with different compilers.
+#
+# Reference https://docs.travis-ci.com/user/customizing-the-build/#The-Build-Lifecycle

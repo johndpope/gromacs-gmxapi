@@ -32,8 +32,8 @@
 # the research papers on the package. Check out http://www.gromacs.org.
 
 """
-Exceptions and Warnings raised by gmx module operations
-=======================================================
+Exceptions and Warnings raised by gmxapi module operations
+==========================================================
 
 Errors, warnings, and other exceptions used in the GROMACS
 Python package are defined in the `exceptions` submodule.
@@ -45,10 +45,13 @@ the gmxapi package throws an exception that cannot be caught
 as a gmxapi.exceptions.Error, please report the bug.
 """
 
-__all__ = ['Error',
+__all__ = ['ApiError',
+           'Error',
            'UsageError',
            'ValueError',
+           'Warning'
            ]
+
 
 class Error(Exception):
     """Base exception for gmx.exceptions classes."""

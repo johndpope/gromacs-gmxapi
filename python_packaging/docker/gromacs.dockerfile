@@ -8,7 +8,8 @@
 # This image serves as a base for integration with the gmxapi Python tools and sample code.
 
 ARG MPIFLAVOR=mpich
-FROM gmxapi/gromacs-dependencies-$MPIFLAVOR
+ARG REF=latest
+FROM gmxapi/gromacs-dependencies-$MPIFLAVOR:$REF
 
 ENV SRC_DIR /tmp/gromacs-source
 COPY . $SRC_DIR

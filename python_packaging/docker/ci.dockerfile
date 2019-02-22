@@ -17,7 +17,7 @@
 # Use gromacs installation from gmxapi/gromacs image
 #
 
-ARG REF=master
+ARG REF=latest
 FROM gmxapi/gromacs-mpich:$REF as gromacs
 # This intermediate is necessary because the COPY command does not support syntax like the following:
 #COPY --from=gmxapi/gromacs:$REF /usr/local/gromacs /usr/local/gromacs

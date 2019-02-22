@@ -5,7 +5,7 @@
 
 # This image serves as a base for integration with the gmxapi Python tools and sample code.
 
-FROM ubuntu
+FROM ubuntu:xenial
 
 # Basic packages
 RUN apt-get update && \

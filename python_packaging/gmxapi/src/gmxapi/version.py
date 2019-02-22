@@ -40,13 +40,14 @@ Attributes:
     release (bool): True if imported gmx module is an officially tagged release, else False.
 
 """
+
 # TODO: configure with CMake
 # __version__ = "@PROJECT_VERSION@"
 # major = @PROJECT_VERSION_MAJOR@
 # minor = @PROJECT_VERSION_MINOR@
 # patch = @PROJECT_VERSION_PATCH@
 
-import gmxapi.exceptions
+from gmxapi.exceptions import Error as GmxapiError
 
 __version__ = "0.1.0-dev0"
 major = 0
@@ -58,8 +59,10 @@ release = False
 
 _named_features = ['fr1']
 
-class FeatureError(gmxapi.exceptions.Error):
+
+class FeatureError(GmxapiError):
     """Module exception to indicate missing features."""
+
 
 def api_is_at_least(major_version, minor_version=0, patch_version=0):
     """Allow client to check whether installed module supports the requested API level.
@@ -72,7 +75,7 @@ def api_is_at_least(major_version, minor_version=0, patch_version=0):
     Returns:
         True if installed gmx package is greater than or equal to the input level
 
-    Note that if gmx.version.release is False, the package is not guaranteed to correctly or
+    Note that if gmxapi.version.release is False, the package is not guaranteed to correctly or
     fully support the reported API level.
     """
     if not isinstance(major_version, int) or not isinstance(minor_version, int) or not isinstance(patch_version, int):
@@ -86,7 +89,26 @@ def api_is_at_least(major_version, minor_version=0, patch_version=0):
     else:
         return False
 
+
 def has_feature(name='', enable_exception=False):
+    """Query whether a named feature is available in the installed package.
+
+    Between updates to the API specification, new features or experimental aspects
+    may be introduced into the package and need to be detectable. This function
+    is intended to facilitate code testing and resolving differences between
+    development branches. Users should refer to the documentation for the package
+    modules and API level.
+
+    The function can be used to get a boolean result or can be used to raise an
+    exception in code block by setting `enable_exception=True`
+
+    Returns:
+        True if named feature is recognized by the installed package, else False.
+
+    Raises:
+        gmxapi.version.FeatureError if `enable_exception == True` and feature is not found.
+
+    """
     if name in _named_features:
         return True
     else:

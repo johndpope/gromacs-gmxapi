@@ -35,6 +35,8 @@ For integration testing here, we only want the `python_packaging` subdirectory.
 For the interactive Jupyter notebook server, mapped to local port 8888:
 
     docker run --rm -t -p 8888:8888 gmxapi/acceptance
+
+For a build that tests a feature branch that has been built and updated, add a tag, such as `gmxapi/acceptance:fr1`
     
 For the a `bash` shell in a Conda environment under the `jovyan` user:
 
@@ -46,9 +48,9 @@ The `entrypoint.sh` script activates the python venv and wraps commands in a `ba
 The default command is a script sourced from `../scripts/run_pytest.sh`. You can use this,
 other scripts, `bash`, etc.
 
-    docker run --rm -t gmxapi/ci:${REF}
-    docker run --rm -t gmxapi/ci:${REF} run_pytest_mpi
-    docker run --rm -t gmxapi/ci:${REF} bash
+    docker run --rm -t gmxapi/ci-mpich:${REF}
+    docker run --rm -t gmxapi/ci-mpich:${REF} run_pytest_mpi
+    docker run --rm -t gmxapi/ci-mpich:${REF} bash
 
 #### Entry points
 
@@ -59,7 +61,6 @@ directory parallel to this one. These additional scripts are primarily to
 allow easy execution of certain suites of tests.
 
 See the `scripts` directory for details.
-
 
 ### Debugging
 

@@ -2,7 +2,11 @@
 # notebook or acceptance tests.
 #
 # Build GROMACS with modifications for gmxapi Python package testing.
-#     docker build -t acceptance --build-arg DOCKER_CORES=4 -f acceptance.dockerfile ../..
+#     docker build -t acceptance --build-arg DOCKER_CORES=4 -f acceptance.dockerfile ..
+#
+# Note that the build context is the `python_packaging` subdirectory, not the root
+# of the repository. The root `.dockerignore` file excludes the `python_packagin`
+# subdirectory to avoid overly conservative expiration of docker build caches.
 #
 # Note to maintainers: Update public feature-test images
 #     docker tag acceptance gmxapi/acceptance:fr1

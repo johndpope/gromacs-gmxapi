@@ -70,7 +70,7 @@ feature branch.
 
 The Dockerfiles direct a few different Linux, Python, and GROMACS configurations,
 build and install the `gmxapi` and `sample_restraint` packages, and provide a
-few styles of testing through the `scritps` accessible through `entrypoint.sh`.
+few styles of testing through the `scripts` accessible through `entrypoint.sh`.
 
 In successive build stages, Travis-CI is directed to use a series of Docker images,
 referred to here with their dockerhub repository, an explanation of tags,

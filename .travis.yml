@@ -24,36 +24,56 @@ compiler: gcc
 # For tag for GROMACS docker image, use
 #    git show -s --pretty=format:"%h" `git merge-base gerrit_master kassonLabFork`
 
-# Set up for all jobs
-#before_install:
-#  - ...
-#install:
-#  - ...
-#before_script:
-#  - ...
-
-# We want Travis-CI to be able to push updated docker images for gromacs-dependencies, gromacs, and ci,
-# but not to allow these to be triggered by PRs from other users. Travis-CI provides some security in
-# this regard, but need to check...
+stages:
+  - name: gromacs
+    if: branch = kassonLabFork
+  - name: pygmxapi
 
 jobs:
   include:
-    # Build and push gmxapi/gromacs-dependencies-<matrix>:<tag> on kassonLabFork branch if the tag does not exist yet.
-    - stage: build base image
-      script:
-      - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
-      - docker pull gmxapi/gromacs-dependencies-mpich
-      - cd python_packaging/docker && docker build -t gmxapi/gromacs-dependencies-mpich .
-      - docker images
-      deploy:
-      - docker push gmxapi/gromacs-dependencies-mpich
+# Assume gmxapi/gromacs-dependencies-<matrix>:latest exists and is sufficient.
+#    # Build and push gmxapi/gromacs-dependencies-<matrix>:<tag> on kassonLabFork branch if the tag does not exist yet.
+#    - stage: build base image
+#      script:
+#      - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+#      - docker pull gmxapi/gromacs-dependencies-mpich
+#      - cd python_packaging/docker && docker build -t gmxapi/gromacs-dependencies-mpich .
+#      - docker images
+#      deploy:
+#      - docker push gmxapi/gromacs-dependencies-mpich
 
     # Build and push gmxapi/gromacs-<matrix>:<tag> on kassonLabFork branch if the tag does not exist
-    - stage: build GROMACS
-      script: docker build -t gmxapi/gromacs-mpich:$(git show -s --pretty=format:"%h" `git merge-base gerrit_master kassonLabFork`)
-    # Build and push gmxapi/ci-<matrix>:fr1
-    - stage: Feature Request 1
-    # What is the difference between the after-script and deploy steps?
+    - stage: gromacs
+      env: FORKPOINT=3c60d38da MATRIX=mpich
+      install:
+        - docker pull gmxapi/gromacs-dependencies-$MATRIX
+        - docker build -t gromacs-$MATRIX --build-arg DOCKER_CORES=4 -f python_packaging/docker/gromacs.dockerfile .
+      script: true
+      after_script:
+        - docker tag gromacs-$MATRIX gmxapi/gromacs-$MATRIX:$FORKPOINT
+        - docker tag gromacs-$MATRIX gmxapi/gromacs-$MATRIX:latest
+        - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+        - docker push gmxapi/gromacs-$MATRIX:$FORKPOINT
+        - docker push gmxapi/gromacs-$MATRIX:latest
+    - stage: pygmxapi
+#      env: FORKPOINT=3c60d38da MATRIX=mpich REF=fr0
+#      before_script:
+#        - docker pull gmxapi/gromacs-$MATRIX
+#        - docker build -t ci-$MATRIX --build-arg REF=$FORKPOINT -f python_packaging/docker/ci.dockerfile python_packaging
+      script:
+#        - docker run --rm ci-$MATRIX run_pytest
+#        - docker run --rm ci-$MATRIX run_pytest_mpi
+#        - docker run --rm ci-$MATRIX integration_test
+#        - docker run --rm ci-$MATRIX required_functionality
+        - true
+      # TODO: skip if PR. (credentials won't be available from Travis, anyway.)
+#      after_success:
+#        - docker tag ci-$MATRIX gmxapi/ci-$MATRIX:$REF
+#        - docker tag ci-$MATRIX gmxapi/ci-$MATRIX:`git show -s --pretty=format:"%h"`
+#        - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+#        - docker push gmxapi/ci-$MATRIX:$REF
+#        - docker push gmxapi/ci-$MATRIX:`git show -s --pretty=format:"%h"`
+# Enable the commented out bits above when the test infrastructure is in place.
 
 # At some point, we should test more types of interactions between components, such as both static and dynamically
 # linked builds, and components built with different compilers.

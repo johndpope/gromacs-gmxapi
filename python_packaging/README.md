@@ -85,7 +85,6 @@ and the Dockerfiles from which they are built.
    `<tag>` is the (short) git revision hash
    of the `master` branch commit corresponding to the current state of the `kassonLabFork`
    branch.
-   This is recorded in the `kassonLabFork` `.travis.yml`.
 2. `gmxapi/gromacs-<matrix>:<tag>` Builds on `gromacs-dependencies-<matrix>`, where
    `<matrix>` has the same meaning as above. `<tag>` is the (short) git revision hash
    of the `master` branch commit corresponding to the current state of the `kassonLabFork`

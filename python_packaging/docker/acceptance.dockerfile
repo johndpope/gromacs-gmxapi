@@ -55,10 +55,13 @@ COPY acceptance /home/jovyan/acceptance
 # gmxapi Python package layer
 #
 
-ADD --chown=jovyan:users gmxapi /home/jovyan/gmxapi
+ADD --chown=jovyan:users requirements-test.txt /home/jovyan/
+RUN cd /home/jovyan/ && \
+    pip install --no-cache-dir -r requirements-test.txt
+
+ADD --chown=jovyan:users src /home/jovyan/gmxapi
 RUN . /usr/local/gromacs/bin/GMXRC && \
     cd /home/jovyan/gmxapi && \
-    pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir .
 
 # Enable this test when there is something to test (i.e. fr1)

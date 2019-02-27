@@ -44,8 +44,6 @@ ENV PATH $CMAKE_ROOT/bin:$PATH
 
 RUN groupadd -r testing && useradd -m -s /bin/bash -g testing testing
 
-ADD --chown=testing:testing gmxapi/requirements-test.txt /home/testing/requirements.txt
-
 USER testing
 
 # TODO: Clean up pip cache.
@@ -53,23 +51,26 @@ RUN python3 -m venv $HOME/testing
 RUN . $HOME/testing/bin/activate && \
     pip install --upgrade pip setuptools && \
     pip install jupyter
+
+ADD --chown=testing:testing requirements-test.txt /home/testing/gmxapi/
+
 RUN . $HOME/testing/bin/activate && \
-    pip install -r /home/testing/requirements.txt
+    pip install -r /home/testing/gmxapi/requirements-test.txt
 
 COPY --from=gromacs $CMAKE_ROOT $CMAKE_ROOT
 COPY --from=gromacs /usr/local/gromacs /usr/local/gromacs
 
-ADD --chown=testing:testing gmxapi /home/testing/gmxapi
-# Enable this dir when there is something to test (i.e. fr1)
-#ADD --chown=testing:testing gmxapi/test /home/testing/gmxapi/test
-ADD --chown=testing:testing gmxapi/src/gmxapi /home/testing/gmxapi/src/gmxapi
+ADD --chown=testing:testing src /home/testing/gmxapi/src
+ADD --chown=testing:testing src/gmxapi /home/testing/gmxapi/src/gmxapi
 
 RUN . $HOME/testing/bin/activate && \
     . /usr/local/gromacs/bin/GMXRC && \
-    (cd $HOME/gmxapi && \
+    (cd $HOME/gmxapi/src && \
      pip install . \
     )
 
+# Enable this dir when there is something to test (i.e. fr1)
+#ADD --chown=testing:testing src/test /home/testing/gmxapi/test
 ADD --chown=testing:testing acceptance /home/testing/acceptance
 ADD --chown=testing:testing scripts /home/testing/scripts
 ADD --chown=testing:testing test /home/testing/test

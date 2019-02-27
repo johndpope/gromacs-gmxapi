@@ -45,15 +45,17 @@ Current packaging:
     # Install GROMACS to /path/to/gromacs
     source /path/to/gromacs/bin/GMXRC
     source $HOME/somevirtualenv/bin/activate
-    (cd gmxapi && pip install -r requirements.txt && pip install .)
+    (cd src && pip install -r requirements.txt && pip install .)
     python -c 'import gmxapi as gmx'
+    pytest src/test
     pytest test
 
 Intended packaging:
 
+    # Build and install GROMACS, which also builds and installs a Python sdist
     source $HOME/somevirtualenv/bin/activate
-    pip install -r /path/to/gromacs/python/requirements.txt
-    pip install /path/to/gromacs/python/gmxapi
+    pip install -r /path/to/gromacs/python-requirements.txt
+    pip install /path/to/gromacs/gmxapi*tar.gz
     python -c 'import gmxapi as gmx'
 
 We can also consider PyPI source and binary distributions in the future.

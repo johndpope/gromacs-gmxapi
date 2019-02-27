@@ -169,6 +169,7 @@ Expectations on Mark for Q1-Q2 2019 GROMACS master changes
 
   - no effort on form and stability of the C++ headers and library in
     2019, beyond what facilitates implementing the Python interface
+    in GROMACS 2020
   - existing libgromacs declarations of "public API" and installed
     headers removed
 

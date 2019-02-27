@@ -62,6 +62,11 @@ We can also consider PyPI source and binary distributions in the future.
 
 ## Docker and Travis-CI testing
 
+All of this is transitionary, and reflects our need to be able to see code work 
+in order to review it satisfactorily in the period when GROMACS CI infrastructure 
+is ready for the load. At some point the Docker and notebook aspects will change,
+or be removed as appropriate.
+
 The Python packaging will be tested on Jenkins with Docker-based CI, but this
 infrastructure is a little way off. In the mean time, we are trying to submit
 changes that do not affect main line GROMACS development or building and to
@@ -110,24 +115,11 @@ Hint: the fork point from `master` and the current git ref can be set as environ
     FORKPOINT=$(git show -s --pretty=format:"%h" `git merge-base gerrit_master HEAD`)
     REF=`git show -s --pretty=format:"%h"`
 
-## pybind11
-
-Python bindings are expressed in C++ using the pybind11 template library.
-The pybind11 repository is mirrored in GROMACS project sources and
-installed with GROMACS for convenience and reproducibility.
-
-pybind11 sources were added to the repository with `git-subtree` and a squash merge.
-
-To update the version of pybind11 included with the GROMACS repository,
-`git-subtree` uses meta-data stashed in the git history to prepare an appropriate squash merge.
-
 # Cross compiling
 
 On some systems, GROMACS will have been built and installed for a different
 architecture than the system on which the Python package will be compiled.
 We need to use CMake Tool-chains to support cross-compiling for the target architecture.
-
-Note: scikit-build can use CMake Toolchains to properly handle `pip` builds.
 
 # Offline installation
 
